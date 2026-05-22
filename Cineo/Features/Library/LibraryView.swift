@@ -4,7 +4,7 @@ struct LibraryView: View {
     @Environment(LibraryRepository.self) private var library
     @State private var viewModel = LibraryViewModel()
 
-    private let columns = [GridItem(.adaptive(minimum: 140), spacing: Theme.Spacing.sm)]
+    private let columns = [GridItem(.adaptive(minimum: 168), spacing: Theme.Spacing.md)]
 
     var body: some View {
         NavigationStack {

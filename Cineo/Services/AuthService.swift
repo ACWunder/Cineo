@@ -23,11 +23,12 @@ final class AuthService: NSObject {
 
     private var currentNonce: String?
     private var continuation: CheckedContinuation<Void, Error>?
-    nonisolated(unsafe) private var authHandle: AuthStateDidChangeListenerHandle?
 
     override init() {
         super.init()
-        authHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+        // Listener lives for the whole app lifetime — AuthService is held as
+        // @State in CineoApp and never torn down. No deinit cleanup needed.
+        _ = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             guard let self else { return }
             Task { @MainActor in
                 if let user {
@@ -36,12 +37,6 @@ final class AuthService: NSObject {
                     self.state = .signedOut
                 }
             }
-        }
-    }
-
-    deinit {
-        if let handle = authHandle {
-            Auth.auth().removeStateDidChangeListener(handle)
         }
     }
 

@@ -42,8 +42,8 @@ struct LibraryDetailView: View {
 
     private var hero: some View {
         VStack(spacing: Theme.Spacing.md) {
-            PosterView(path: item.posterPath, size: "w500", radius: Theme.Radius.lg)
-                .frame(maxWidth: 240)
+            PosterView(path: item.posterPath, size: "w780", radius: Theme.Radius.lg)
+                .frame(maxWidth: 300)
                 .padding(.top, Theme.Spacing.sm)
             VStack(spacing: 4) {
                 Text(item.title)

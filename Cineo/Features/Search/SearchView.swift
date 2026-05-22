@@ -77,9 +77,9 @@ private struct SearchResultRow: View {
     let onAdd: () -> Void
 
     var body: some View {
-        HStack(spacing: Theme.Spacing.sm) {
-            PosterView(path: result.posterPath, size: "w185", radius: Theme.Radius.sm, shadow: false)
-                .frame(width: 64)
+        HStack(spacing: Theme.Spacing.md) {
+            PosterView(path: result.posterPath, size: "w342", radius: Theme.Radius.md, shadow: false)
+                .frame(width: 84)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(result.displayTitle)

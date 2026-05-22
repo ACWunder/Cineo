@@ -1,6 +1,6 @@
 import Foundation
 
-struct LibraryItem: Codable, Identifiable, Hashable, Sendable {
+nonisolated struct LibraryItem: Codable, Identifiable, Hashable, Sendable {
     let tmdbId: Int
     let mediaType: MediaType
     let title: String
@@ -19,7 +19,7 @@ struct LibraryItem: Codable, Identifiable, Hashable, Sendable {
     var hasRating: Bool { rating != nil }
 }
 
-struct DismissedItem: Codable, Identifiable, Hashable, Sendable {
+nonisolated struct DismissedItem: Codable, Identifiable, Hashable, Sendable {
     let tmdbId: Int
     let mediaType: MediaType
 

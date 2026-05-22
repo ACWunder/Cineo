@@ -1,22 +1,22 @@
 import Foundation
 
-struct TMDBGenre: Decodable, Hashable, Sendable {
+nonisolated struct TMDBGenre: Decodable, Hashable, Sendable {
     let id: Int
     let name: String
 }
 
-struct TMDBGenresResponse: Decodable, Sendable {
+nonisolated struct TMDBGenresResponse: Decodable, Sendable {
     let genres: [TMDBGenre]
 }
 
-struct TMDBSearchMultiResponse: Decodable, Sendable {
+nonisolated struct TMDBSearchMultiResponse: Decodable, Sendable {
     let page: Int?
     let results: [TMDBSearchMultiResult]
     let totalPages: Int?
     let totalResults: Int?
 }
 
-struct TMDBSearchMultiResult: Decodable, Hashable, Sendable, Identifiable {
+nonisolated struct TMDBSearchMultiResult: Decodable, Hashable, Sendable, Identifiable {
     let id: Int
     let mediaType: String?
     let title: String?
@@ -41,7 +41,7 @@ struct TMDBSearchMultiResult: Decodable, Hashable, Sendable, Identifiable {
     }
 }
 
-struct TMDBMovieDetails: Decodable, Sendable {
+nonisolated struct TMDBMovieDetails: Decodable, Sendable {
     let id: Int
     let title: String
     let overview: String?
@@ -53,7 +53,7 @@ struct TMDBMovieDetails: Decodable, Sendable {
     var year: String { String((releaseDate ?? "").prefix(4)) }
 }
 
-struct TMDBTVDetails: Decodable, Sendable {
+nonisolated struct TMDBTVDetails: Decodable, Sendable {
     let id: Int
     let name: String
     let overview: String?
@@ -69,7 +69,7 @@ struct TMDBTVDetails: Decodable, Sendable {
     var year: String { String((firstAirDate ?? "").prefix(4)) }
 }
 
-struct TMDBEpisode: Decodable, Hashable, Sendable {
+nonisolated struct TMDBEpisode: Decodable, Hashable, Sendable {
     let id: Int?
     let name: String?
     let airDate: String?
@@ -82,7 +82,7 @@ struct TMDBEpisode: Decodable, Hashable, Sendable {
     }
 }
 
-struct TMDBSeason: Decodable, Hashable, Sendable {
+nonisolated struct TMDBSeason: Decodable, Hashable, Sendable {
     let id: Int?
     let name: String?
     let airDate: String?
@@ -91,12 +91,12 @@ struct TMDBSeason: Decodable, Hashable, Sendable {
     let posterPath: String?
 }
 
-struct TMDBRecommendationsResponse: Decodable, Sendable {
+nonisolated struct TMDBRecommendationsResponse: Decodable, Sendable {
     let page: Int?
     let results: [TMDBRecommendation]
 }
 
-struct TMDBRecommendation: Decodable, Hashable, Sendable, Identifiable {
+nonisolated struct TMDBRecommendation: Decodable, Hashable, Sendable, Identifiable {
     let id: Int
     let mediaType: String?
     let title: String?
@@ -116,7 +116,7 @@ struct TMDBRecommendation: Decodable, Hashable, Sendable, Identifiable {
     }
 }
 
-enum TMDB {
+nonisolated enum TMDB {
     static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.calendar = Calendar(identifier: .iso8601)

@@ -38,8 +38,8 @@ struct AddTitleSheet: View {
 
     private var header: some View {
         VStack(spacing: Theme.Spacing.sm) {
-            PosterView(path: result.posterPath, size: "w342", radius: Theme.Radius.md)
-                .frame(width: 96)
+            PosterView(path: result.posterPath, size: "w500", radius: Theme.Radius.md)
+                .frame(width: 132)
             Text(result.displayTitle)
                 .font(Theme.Typography.title3)
                 .foregroundStyle(Theme.Colors.textPrimary)

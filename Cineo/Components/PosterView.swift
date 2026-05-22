@@ -6,23 +6,30 @@ struct PosterView: View {
     var radius: CGFloat = Theme.Radius.md
     var shadow: Bool = true
 
+    @State private var loaded: Bool = false
+
     var body: some View {
         let url = TMDB.posterURL(path, size: size)
-        AsyncImage(url: url) { phase in
-            switch phase {
-            case .empty:
-                placeholder
-            case .success(let image):
-                image
-                    .resizable()
-                    .scaledToFill()
-            case .failure:
-                placeholder.overlay(
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundStyle(Theme.Colors.textTertiary)
-                )
-            @unknown default:
-                placeholder
+        ZStack {
+            placeholder
+            AsyncImage(url: url, transaction: Transaction(animation: .easeOut(duration: 0.35))) { phase in
+                switch phase {
+                case .empty:
+                    Color.clear
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .opacity(loaded ? 1 : 0)
+                        .onAppear { loaded = true }
+                case .failure:
+                    placeholder.overlay(
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                    )
+                @unknown default:
+                    Color.clear
+                }
             }
         }
         .aspectRatio(Theme.Layout.posterAspect, contentMode: .fit)
@@ -33,15 +40,19 @@ struct PosterView: View {
         )
         .shadow(color: shadow ? Theme.Colors.shadow : .clear,
                 radius: shadow ? Theme.Layout.cardShadowRadius : 0,
-                x: 0, y: shadow ? 12 : 0)
+                x: 0, y: shadow ? 14 : 0)
     }
 
     private var placeholder: some View {
         ZStack {
-            Theme.Colors.surfaceElevated
-            Image(systemName: "film")
+            LinearGradient(
+                colors: [Theme.Colors.surfaceElevated, Theme.Colors.surface],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            Image(systemName: "film.fill")
                 .font(.system(size: 36, weight: .light))
-                .foregroundStyle(Theme.Colors.textTertiary)
+                .foregroundStyle(Theme.Colors.textTertiary.opacity(0.6))
         }
     }
 }

@@ -88,9 +88,9 @@ private struct SeriesRow: View {
     let status: SeasonsViewModel.SeriesStatus
 
     var body: some View {
-        HStack(spacing: Theme.Spacing.sm) {
-            PosterView(path: status.item.posterPath, size: "w185", radius: Theme.Radius.sm, shadow: false)
-                .frame(width: 64)
+        HStack(spacing: Theme.Spacing.md) {
+            PosterView(path: status.item.posterPath, size: "w342", radius: Theme.Radius.md, shadow: false)
+                .frame(width: 84)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(status.item.title)

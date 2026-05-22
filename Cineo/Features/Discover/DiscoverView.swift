@@ -1,15 +1,24 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct DiscoverView: View {
 
     @Environment(LibraryRepository.self) private var library
     @Environment(DismissedRepository.self) private var dismissed
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var viewModel = DiscoverViewModel()
     @State private var ratingDraft: Int = 0
     @State private var ratingCandidate: DiscoverViewModel.Candidate?
     @State private var offset: CGSize = .zero
     @State private var didInitialLoad: Bool = false
+    @State private var didCrossThreshold: Bool = false
+    @State private var flyingOut: Bool = false
+
+    private let swipeThreshold: CGFloat = 110
+    private let maxRotation: Double = 12
 
     var body: some View {
         NavigationStack {
@@ -26,7 +35,8 @@ struct DiscoverView: View {
                         Task { await reload() }
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .foregroundStyle(Theme.Colors.accent)
+                            .font(.system(size: 17, weight: .semibold, design: .rounded))
+                            .foregroundStyle(Theme.Colors.accentLight)
                     }
                 }
             }
@@ -37,9 +47,6 @@ struct DiscoverView: View {
                 await reload()
             }
         }
-        .onChange(of: library.items.map(\.tmdbId)) { _, _ in
-            if !didInitialLoad { return }
-        }
         .sheet(item: $ratingCandidate) { candidate in
             RatingSheet(
                 title: candidate.title,
@@ -48,7 +55,6 @@ struct DiscoverView: View {
                     Task {
                         let item = viewModel.toLibraryItem(candidate, rating: value, watched: true)
                         await library.add(item)
-                        viewModel.popTop()
                         ratingDraft = 0
                         ratingCandidate = nil
                     }
@@ -89,46 +95,101 @@ struct DiscoverView: View {
     }
 
     private var stackView: some View {
-        VStack {
+        VStack(spacing: 0) {
             Spacer(minLength: 0)
-            ZStack {
-                ForEach(Array(viewModel.stack.prefix(3).enumerated()).reversed(), id: \.element.id) { entry in
-                    let depth = entry.offset
-                    let candidate = entry.element
-                    DiscoverCardView(candidate: candidate)
-                        .scaleEffect(1 - CGFloat(depth) * 0.04)
-                        .offset(y: CGFloat(depth) * 14)
-                        .offset(depth == 0 ? offset : .zero)
-                        .rotationEffect(depth == 0 ? .degrees(Double(offset.width) / 20) : .zero)
-                        .zIndex(Double(10 - depth))
-                        .gesture(depth == 0 ? dragGesture(for: candidate) : nil)
-                        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: offset)
-                }
-            }
-            .frame(maxWidth: 520)
-            .padding(.horizontal, Theme.Spacing.md)
-
-            Spacer(minLength: Theme.Spacing.md)
-
+            cardStack
+                .padding(.horizontal, Theme.Spacing.md)
+            Spacer(minLength: Theme.Spacing.lg)
             if let top = viewModel.stack.first {
                 actionButtons(for: top)
-                    .padding(.horizontal, Theme.Spacing.md)
+                    .padding(.horizontal, Theme.Spacing.lg)
                     .padding(.bottom, Theme.Spacing.lg)
             }
         }
     }
 
+    // MARK: - Card stack
+
+    private var cardStack: some View {
+        ZStack {
+            ForEach(Array(viewModel.stack.prefix(3).enumerated()).reversed(), id: \.element.id) { entry in
+                let depth = entry.offset
+                let candidate = entry.element
+                let isTop = depth == 0
+
+                DiscoverCardView(candidate: candidate)
+                    .overlay(alignment: .top) {
+                        if isTop {
+                            swipeOverlay
+                                .padding(Theme.Spacing.lg)
+                        }
+                    }
+                    .scaleEffect(stackScale(for: depth))
+                    .offset(y: stackYOffset(for: depth))
+                    .offset(isTop ? offset : .zero)
+                    .rotationEffect(isTop ? .degrees(rotationAngle) : .zero, anchor: .bottom)
+                    .opacity(isTop && flyingOut ? 0 : 1)
+                    .zIndex(Double(10 - depth))
+                    .gesture(isTop ? dragGesture(for: candidate) : nil)
+                    .animation(motion, value: offset)
+                    .animation(motion, value: flyingOut)
+                    .accessibilityElement(children: .combine)
+            }
+        }
+        .frame(maxWidth: 520)
+    }
+
+    private var swipeOverlay: some View {
+        HStack {
+            SwipeBadge(
+                text: "PASS",
+                tint: Theme.Colors.dismissTint,
+                rotation: -10
+            )
+            .opacity(max(0, Double(-offset.width / swipeThreshold)))
+            Spacer()
+            SwipeBadge(
+                text: "GESEHEN",
+                tint: Theme.Colors.accentLight,
+                rotation: 10
+            )
+            .opacity(max(0, Double(offset.width / swipeThreshold)))
+        }
+    }
+
+    private var rotationAngle: Double {
+        let raw = Double(offset.width) / 20
+        return max(-maxRotation, min(maxRotation, raw))
+    }
+
+    private func stackScale(for depth: Int) -> CGFloat {
+        if reduceMotion { return 1 }
+        switch depth {
+        case 0: return 1
+        case 1: return 0.95
+        default: return 0.9
+        }
+    }
+
+    private func stackYOffset(for depth: Int) -> CGFloat {
+        if reduceMotion { return 0 }
+        return CGFloat(depth) * 14
+    }
+
+    private var motion: Animation { reduceMotion ? Theme.Motion.reduced : Theme.Motion.spring }
+
+    // MARK: - Actions
+
     private func actionButtons(for candidate: DiscoverViewModel.Candidate) -> some View {
         HStack(spacing: Theme.Spacing.lg) {
-            CircleActionButton(symbol: "xmark", kind: .neutral) {
-                Task { await dismissAction(candidate) }
+            CircleActionButton(symbol: "xmark", kind: .neutral, size: Theme.Layout.circleActionMd) {
+                triggerSwipe(.left, for: candidate)
             }
-            CircleActionButton(symbol: "plus", kind: .accent, size: 84) {
-                Task { await addAction(candidate) }
+            CircleActionButton(symbol: "plus", kind: .accent, size: Theme.Layout.circleActionLg) {
+                Task { await plusAction(candidate) }
             }
-            CircleActionButton(symbol: "eye", kind: .neutral) {
-                ratingDraft = 0
-                ratingCandidate = candidate
+            CircleActionButton(symbol: "eye.fill", kind: .neutral, size: Theme.Layout.circleActionMd) {
+                triggerSwipe(.right, for: candidate)
             }
         }
         .frame(maxWidth: .infinity)
@@ -136,33 +197,128 @@ struct DiscoverView: View {
 
     private func dragGesture(for candidate: DiscoverViewModel.Candidate) -> some Gesture {
         DragGesture()
-            .onChanged { value in offset = value.translation }
+            .onChanged { value in
+                offset = value.translation
+                let crossed = abs(value.translation.width) > swipeThreshold
+                if crossed && !didCrossThreshold {
+                    didCrossThreshold = true
+                    hapticEdge()
+                } else if !crossed && didCrossThreshold {
+                    didCrossThreshold = false
+                }
+            }
             .onEnded { value in
-                let threshold: CGFloat = 120
-                if value.translation.width < -threshold {
-                    Task { await dismissAction(candidate) }
-                } else if value.translation.width > threshold {
-                    Task { await addAction(candidate) }
+                didCrossThreshold = false
+                if value.translation.width < -swipeThreshold {
+                    triggerSwipe(.left, for: candidate)
+                } else if value.translation.width > swipeThreshold {
+                    triggerSwipe(.right, for: candidate)
                 } else {
                     offset = .zero
                 }
             }
     }
 
+    private enum SwipeDirection {
+        case left, right
+        var sign: CGFloat { self == .right ? 1 : -1 }
+    }
+
+    private func triggerSwipe(_ direction: SwipeDirection, for candidate: DiscoverViewModel.Candidate) {
+        hapticConfirm()
+        if reduceMotion {
+            flyingOut = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                finalizeSwipe(direction, candidate: candidate)
+            }
+        } else {
+            withAnimation(.easeOut(duration: 0.28)) {
+                offset = CGSize(width: 900 * direction.sign, height: offset.height + 60)
+                flyingOut = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                finalizeSwipe(direction, candidate: candidate)
+            }
+        }
+    }
+
+    private func finalizeSwipe(_ direction: SwipeDirection, candidate: DiscoverViewModel.Candidate) {
+        Task {
+            switch direction {
+            case .left:
+                await dismissed.dismiss(tmdbId: candidate.tmdbId, mediaType: candidate.mediaType)
+            case .right:
+                ratingDraft = 0
+                ratingCandidate = candidate
+            }
+            viewModel.popTop()
+            offset = .zero
+            flyingOut = false
+        }
+    }
+
+    private func plusAction(_ candidate: DiscoverViewModel.Candidate) async {
+        hapticConfirm()
+        let item = viewModel.toLibraryItem(candidate, rating: nil, watched: false)
+        await library.add(item)
+        if !reduceMotion {
+            withAnimation(.easeOut(duration: 0.28)) {
+                offset = CGSize(width: 0, height: -800)
+                flyingOut = true
+            }
+        } else {
+            flyingOut = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+            viewModel.popTop()
+            offset = .zero
+            flyingOut = false
+        }
+    }
+
+    // MARK: - Haptics
+
+    private func hapticEdge() {
+#if canImport(UIKit)
+        let gen = UIImpactFeedbackGenerator(style: .light)
+        gen.impactOccurred()
+#endif
+    }
+
+    private func hapticConfirm() {
+#if canImport(UIKit)
+        let gen = UIImpactFeedbackGenerator(style: .medium)
+        gen.impactOccurred()
+#endif
+    }
+
+    // MARK: - Data
+
     private func reload() async {
         let libraryItems = library.items
         let dismissedIds = Set(dismissed.items.map(\.tmdbId))
         await viewModel.reload(library: libraryItems, dismissedIds: dismissedIds)
     }
+}
 
-    private func addAction(_ candidate: DiscoverViewModel.Candidate) async {
-        let item = viewModel.toLibraryItem(candidate, rating: nil, watched: false)
-        await library.add(item)
-        withAnimation { viewModel.popTop(); offset = .zero }
-    }
+// MARK: - Swipe badge
 
-    private func dismissAction(_ candidate: DiscoverViewModel.Candidate) async {
-        await dismissed.dismiss(tmdbId: candidate.tmdbId, mediaType: candidate.mediaType)
-        withAnimation { viewModel.popTop(); offset = .zero }
+private struct SwipeBadge: View {
+    let text: String
+    let tint: Color
+    let rotation: Double
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 22, weight: .heavy, design: .rounded))
+            .tracking(2)
+            .foregroundStyle(tint)
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.vertical, Theme.Spacing.xs)
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous)
+                    .strokeBorder(tint, lineWidth: 3)
+            )
+            .rotationEffect(.degrees(rotation))
     }
 }

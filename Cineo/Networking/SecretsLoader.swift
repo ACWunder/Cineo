@@ -1,6 +1,6 @@
 import Foundation
 
-enum Secrets {
+nonisolated enum Secrets {
 
     /// TMDB v4 Read Access Token (Bearer). Loaded from Info.plist key `TMDBBearerToken`,
     /// which is wired to `$(TMDB_BEARER_TOKEN)` from `Config/Secrets.xcconfig`.
