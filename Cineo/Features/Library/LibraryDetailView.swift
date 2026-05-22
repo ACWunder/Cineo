@@ -41,7 +41,6 @@ struct LibraryDetailView: View {
                     cover
                     titleBlock
                     if !item.genres.isEmpty { genrePills }
-                    providersRow
                     if isInLibrary { ratingRow }
                     if !item.overview.isEmpty { description }
                     castRow
@@ -176,14 +175,6 @@ struct LibraryDetailView: View {
                 .shadow(color: .black.opacity(0.55), radius: 10, y: 3)
                 .minimumScaleFactor(0.85)
 
-            if let tagline = extras?.tagline, !tagline.isEmpty {
-                Text(tagline)
-                    .font(.system(size: 14, weight: .regular, design: .rounded))
-                    .italic()
-                    .foregroundStyle(Theme.Colors.textSecondary)
-                    .multilineTextAlignment(.center)
-            }
-
             HStack(spacing: 6) {
                 Image(systemName: item.mediaType.symbol)
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
@@ -220,20 +211,6 @@ struct LibraryDetailView: View {
             }
         }
         .frame(maxWidth: .infinity)
-    }
-
-    // MARK: - Providers
-
-    @ViewBuilder
-    private var providersRow: some View {
-        if let providers = extras?.providers, !providers.isEmpty {
-            HStack(spacing: 8) {
-                ForEach(providers) { provider in
-                    ProviderIcon(provider: provider)
-                }
-            }
-            .frame(maxWidth: .infinity)
-        }
     }
 
     // MARK: - Cast
