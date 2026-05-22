@@ -33,7 +33,7 @@ struct PrimaryButton: View {
                     .strokeBorder(borderColor, lineWidth: borderWidth)
             )
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
-            .shadow(color: glowColor, radius: glowRadius, x: 0, y: 6)
+            .shadow(color: glowColor, radius: glowRadius, x: 0, y: 8)
             .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
         }
         .buttonStyle(CineoPressStyle())
@@ -55,7 +55,7 @@ struct PrimaryButton: View {
 
     private var foreground: Color {
         switch kind {
-        case .accent: Theme.Colors.textPrimary
+        case .accent: Color.black.opacity(0.92)
         case .neutral: Theme.Colors.textPrimary
         case .danger: Theme.Colors.textPrimary
         case .ghost: Theme.Colors.textPrimary
@@ -78,13 +78,13 @@ struct PrimaryButton: View {
     private var glowColor: Color {
         switch kind {
         case .accent: Theme.Colors.accentGlow
-        case .danger: Theme.Colors.danger.opacity(0.35)
+        case .danger: Theme.Colors.danger.opacity(0.32)
         default: .clear
         }
     }
     private var glowRadius: CGFloat {
         switch kind {
-        case .accent, .danger: 16
+        case .accent, .danger: 18
         default: 0
         }
     }
@@ -99,16 +99,14 @@ struct CircleActionButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: size * 0.42, weight: .bold, design: .rounded))
+                .font(.system(size: size * 0.40, weight: .bold, design: .rounded))
                 .foregroundStyle(foreground)
                 .frame(width: size, height: size)
                 .background(backgroundShape)
-                .overlay(
-                    Circle().strokeBorder(borderColor, lineWidth: 1)
-                )
+                .overlay(borderOverlay)
                 .shadow(color: glowColor, radius: glowRadius, x: 0, y: 8)
         }
-        .buttonStyle(CineoPressStyle(scale: 0.93))
+        .buttonStyle(CineoPressStyle(scale: 0.92))
     }
 
     @ViewBuilder
@@ -117,39 +115,55 @@ struct CircleActionButton: View {
         case .accent:
             Circle().fill(Theme.Colors.accentGradient)
         case .neutral:
-            Circle().fill(Theme.Colors.surfaceElevated)
+            Circle()
+                .fill(.ultraThinMaterial)
+                .background(Circle().fill(Theme.Colors.surface.opacity(0.6)))
         case .danger:
             Circle().fill(Theme.Colors.danger.opacity(0.85))
         case .ghost:
-            Circle().fill(Theme.Colors.surface)
+            // Translucent: just a faint glass disc, no fill.
+            Circle()
+                .fill(.ultraThinMaterial.opacity(0.25))
         }
+    }
+
+    private var borderOverlay: some View {
+        Circle().strokeBorder(borderColor, lineWidth: borderWidth)
     }
 
     private var foreground: Color {
         switch kind {
-        case .accent: Theme.Colors.textPrimary
+        case .accent: Color.black.opacity(0.92)
         case .neutral: Theme.Colors.textPrimary
         case .danger: Theme.Colors.textPrimary
-        case .ghost: Theme.Colors.textPrimary
+        case .ghost: Theme.Colors.accentLight
         }
     }
     private var borderColor: Color {
         switch kind {
-        case .accent: .clear
+        case .accent: Color.white.opacity(0.18)
         case .neutral, .ghost: Theme.Colors.border
         case .danger: .clear
+        }
+    }
+    private var borderWidth: CGFloat {
+        switch kind {
+        case .accent: 0.5
+        case .neutral, .ghost: 1
+        case .danger: 0
         }
     }
     private var glowColor: Color {
         switch kind {
         case .accent: Theme.Colors.accentGlow
         case .danger: Theme.Colors.danger.opacity(0.4)
-        default: Theme.Colors.shadow.opacity(0.5)
+        default: Theme.Colors.shadowSoft
         }
     }
     private var glowRadius: CGFloat {
         switch kind {
-        case .accent, .danger: 18
+        case .accent: 22
+        case .danger: 18
         default: 10
         }
     }

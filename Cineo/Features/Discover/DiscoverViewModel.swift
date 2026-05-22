@@ -17,12 +17,40 @@ final class DiscoverViewModel {
         var id: Int { tmdbId }
     }
 
+    enum MediaFilter: String, CaseIterable, Identifiable, Sendable {
+        case all
+        case movie
+        case tv
+
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .all: "Alle"
+            case .movie: "Filme"
+            case .tv: "Serien"
+            }
+        }
+    }
+
+    private var allCandidates: [Candidate] = []
     var stack: [Candidate] = []
+    var filter: MediaFilter = .all { didSet { applyFilter() } }
     var isLoading: Bool = false
     var error: String?
     var emptyLibrary: Bool = false
 
     private let client = TMDBClient.shared
+
+    private func applyFilter() {
+        switch filter {
+        case .all:
+            stack = allCandidates
+        case .movie:
+            stack = allCandidates.filter { $0.mediaType == .movie }
+        case .tv:
+            stack = allCandidates.filter { $0.mediaType == .tv }
+        }
+    }
 
     func reload(library: [LibraryItem], dismissedIds: Set<Int>) async {
         isLoading = true
@@ -84,7 +112,8 @@ final class DiscoverViewModel {
             ))
         }
 
-        stack = candidates
+        allCandidates = candidates
+        applyFilter()
     }
 
     private func loadTrendingFallback(libraryIds: Set<Int>, dismissedIds: Set<Int>) async {
@@ -107,7 +136,8 @@ final class DiscoverViewModel {
                     voteAverage: res.voteAverage ?? 0
                 ))
             }
-            stack = candidates
+            allCandidates = candidates
+            applyFilter()
         } catch {
             self.error = error.localizedDescription
         }
@@ -115,7 +145,8 @@ final class DiscoverViewModel {
 
     func popTop() {
         guard !stack.isEmpty else { return }
-        stack.removeFirst()
+        let removed = stack.removeFirst()
+        allCandidates.removeAll(where: { $0.id == removed.id })
     }
 
     func toLibraryItem(_ c: Candidate, rating: Int?, watched: Bool) -> LibraryItem {

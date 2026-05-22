@@ -47,22 +47,57 @@ struct DiscoverView: View {
     }
 
     private var topBar: some View {
-        HStack {
+        HStack(spacing: Theme.Spacing.xs) {
+            filterChips
             Spacer()
             Button {
                 Task { await reload() }
             } label: {
                 Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.Colors.accentLight)
-                    .frame(width: 44, height: 44)
-                    .background(Theme.Colors.surfaceElevated, in: Circle())
+                    .frame(width: 40, height: 40)
+                    .background(.ultraThinMaterial.opacity(0.4), in: Circle())
                     .overlay(Circle().strokeBorder(Theme.Colors.border, lineWidth: 0.5))
             }
             .buttonStyle(CineoPressStyle(scale: 0.92))
         }
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.top, Theme.Spacing.xs)
+    }
+
+    private var filterChips: some View {
+        @Bindable var vm = viewModel
+        return HStack(spacing: 6) {
+            ForEach(DiscoverViewModel.MediaFilter.allCases) { option in
+                let isActive = vm.filter == option
+                Button {
+                    vm.filter = option
+                } label: {
+                    Text(option.label)
+                        .font(Theme.Typography.footnote.weight(.semibold))
+                        .foregroundStyle(isActive ? Color.black.opacity(0.9) : Theme.Colors.textPrimary)
+                        .padding(.horizontal, Theme.Spacing.sm)
+                        .padding(.vertical, 7)
+                        .background(
+                            Group {
+                                if isActive {
+                                    Capsule().fill(Theme.Colors.accentGradient)
+                                } else {
+                                    Capsule().fill(.ultraThinMaterial.opacity(0.35))
+                                }
+                            }
+                        )
+                        .overlay(
+                            Capsule().strokeBorder(
+                                isActive ? Color.clear : Theme.Colors.border,
+                                lineWidth: 0.5
+                            )
+                        )
+                }
+                .buttonStyle(CineoPressStyle(scale: 0.94))
+            }
+        }
     }
 
     @ViewBuilder
@@ -183,11 +218,11 @@ struct DiscoverView: View {
             CircleActionButton(symbol: "xmark", kind: .neutral, size: Theme.Layout.circleActionLg) {
                 triggerSwipe(.left, for: candidate)
             }
-            // Plus — smaller — adds to watchlist
-            CircleActionButton(symbol: "plus", kind: .accent, size: Theme.Layout.circleActionMd) {
+            // Plus — smaller, transparent ghost — adds to watchlist
+            CircleActionButton(symbol: "plus", kind: .ghost, size: Theme.Layout.circleActionSm) {
                 Task { await addToWatchlist(candidate) }
             }
-            // Eye — opens rating overlay
+            // Eye — gold, opens rating overlay
             CircleActionButton(symbol: "eye.fill", kind: .accent, size: Theme.Layout.circleActionLg) {
                 openRating(for: candidate)
             }
