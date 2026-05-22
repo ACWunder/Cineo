@@ -321,23 +321,24 @@ private struct LibraryGridCell: View {
     let item: LibraryItem
 
     var body: some View {
-        VStack(alignment: .center, spacing: Theme.Spacing.xs) {
+        VStack(alignment: .center, spacing: 0) {
+            // Poster pinned to the full cell width so every cover in the row
+            // is the exact same size, regardless of the title length below.
             PosterView(path: item.posterPath, size: "w342", radius: Theme.Radius.md)
+                .frame(maxWidth: .infinity)
 
-            // Let the title size itself naturally (1 or 2 lines). LazyVGrid
-            // matches the row height to the tallest cell, so a 2-line title
-            // in one cell will push the row taller and the shorter cell shows
-            // a gap below — exactly what we want — while two 1-line titles
-            // leave no empty band between rows.
+            // Title may wrap to 1 or 2 lines. The fixed gap above keeps the
+            // poster baseline consistent across the row.
             Text(item.title)
                 .font(Theme.Typography.callout.weight(.semibold))
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity)
+                .padding(.top, Theme.Spacing.xs)
 
-            // Always render the meta line at a fixed height so cells stay
-            // aligned even when the rating is missing.
+            // Year + rating sit a clear gap below the title.
             HStack(spacing: 6) {
                 if !item.year.isEmpty {
                     Text(item.year)
@@ -354,6 +355,7 @@ private struct LibraryGridCell: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 14)
+            .padding(.top, Theme.Spacing.sm)
         }
         // Pin the cell's content to the top of its grid slot. Without this,
         // a row where one cell has a 2-line title and the other has a 1-line
