@@ -46,12 +46,12 @@ struct WatchlistView: View {
                     )
                     .padding(.horizontal, Theme.Spacing.md)
                     .padding(.top, Theme.Spacing.xs)
-                    .padding(.bottom, isSearching ? Theme.Spacing.sm : Theme.Spacing.xs)
+                    .padding(.bottom, isSearching ? Theme.Spacing.sm : Theme.Spacing.md)
 
                     if !isSearching {
                         mediaFilterChips
                             .padding(.horizontal, Theme.Spacing.md)
-                            .padding(.bottom, Theme.Spacing.sm)
+                            .padding(.bottom, Theme.Spacing.md)
                     }
 
                     if isSearching {
