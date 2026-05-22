@@ -321,24 +321,23 @@ private struct LibraryGridCell: View {
     let item: LibraryItem
 
     var body: some View {
+        // Every cell follows the exact same layout: poster, then always
+        // two reserved title lines, then the meta row. Short titles just
+        // leave the second line blank — the trade-off is a uniform grid
+        // where every cover is the same size.
         VStack(alignment: .center, spacing: 0) {
-            // Poster pinned to the full cell width so every cover in the row
-            // is the exact same size, regardless of the title length below.
             PosterView(path: item.posterPath, size: "w342", radius: Theme.Radius.md)
                 .frame(maxWidth: .infinity)
 
-            // Title may wrap to 1 or 2 lines. The fixed gap above keeps the
-            // poster baseline consistent across the row.
             Text(item.title)
                 .font(Theme.Typography.callout.weight(.semibold))
                 .foregroundStyle(Theme.Colors.textPrimary)
-                .lineLimit(2)
+                .lineLimit(2, reservesSpace: true)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity)
                 .padding(.top, Theme.Spacing.xs)
 
-            // Year + rating sit a clear gap below the title.
             HStack(spacing: 6) {
                 if !item.year.isEmpty {
                     Text(item.year)
@@ -357,11 +356,6 @@ private struct LibraryGridCell: View {
             .frame(height: 14)
             .padding(.top, Theme.Spacing.sm)
         }
-        // Pin the cell's content to the top of its grid slot. Without this,
-        // a row where one cell has a 2-line title and the other has a 1-line
-        // title vertically centers the shorter cell, making it look like
-        // the poster sinks.
-        .frame(maxHeight: .infinity, alignment: .top)
     }
 }
 
