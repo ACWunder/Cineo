@@ -34,23 +34,23 @@ struct LibraryDetailView: View {
     }
 
     var body: some View {
-        ZStack {
-            backdrop
-            ScrollView {
-                VStack(spacing: Theme.Spacing.lg) {
-                    cover
-                    titleBlock
-                    if !item.genres.isEmpty { genrePills }
-                    if isInLibrary { ratingRow }
-                    if !item.overview.isEmpty { description }
-                    castRow
-                    actions
-                }
-                .padding(.horizontal, Theme.Spacing.xl)
-                .padding(.top, Theme.Spacing.lg)
-                .padding(.bottom, Theme.Spacing.xxl)
+        ScrollView {
+            VStack(spacing: Theme.Spacing.lg) {
+                cover
+                titleBlock
+                if !item.genres.isEmpty { genrePills }
+                if isInLibrary { ratingRow }
+                if !item.overview.isEmpty { description }
+                castRow
+                actions
             }
-
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, Theme.Spacing.lg)
+            .padding(.top, Theme.Spacing.lg)
+            .padding(.bottom, Theme.Spacing.xxl)
+        }
+        .background(backdrop.ignoresSafeArea())
+        .overlay {
             if showRatingOverlay {
                 RatingOverlay(
                     title: item.title,
