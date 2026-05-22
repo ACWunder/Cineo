@@ -234,6 +234,11 @@ struct DiscoverView: View {
                     }
                     .animation(motion, value: offset)
                     .animation(motion, value: flyingOut)
+                    // When the stack pops a card, SwiftUI's default transition
+                    // would otherwise fade/scale the disappearing card in place
+                    // — that's the "ghost in the back" you saw. Cut it: the
+                    // departingOverlay already shows the leaving card.
+                    .transition(.identity)
                     .accessibilityElement(children: .combine)
             }
         }
@@ -404,14 +409,16 @@ struct DiscoverView: View {
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { clearDeparture() }
         } else {
-            withAnimation(.easeOut(duration: duration)) {
+            // Softer tween for taps that start from offset .zero — easeInOut
+            // ramps in/out so the X-button doesn't kick the card abruptly.
+            withAnimation(.easeInOut(duration: duration)) {
                 departingOffset = CGSize(
-                    width: 1200 * direction.sign,
-                    height: startingOffset.height + 80
+                    width: 1100 * direction.sign,
+                    height: startingOffset.height + 30
                 )
-                departingRotation = direction.sign > 0 ? 20 : -20
+                departingRotation = direction.sign > 0 ? 12 : -12
             }
-            withAnimation(.easeIn(duration: duration * 0.6).delay(duration * 0.4)) {
+            withAnimation(.easeIn(duration: duration * 0.5).delay(duration * 0.55)) {
                 departingOpacity = 0
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + duration) { clearDeparture() }
