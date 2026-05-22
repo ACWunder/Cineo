@@ -324,12 +324,15 @@ private struct LibraryGridCell: View {
         VStack(alignment: .center, spacing: Theme.Spacing.xs) {
             PosterView(path: item.posterPath, size: "w342", radius: Theme.Radius.md)
 
-            // Always reserve 2 lines so 1-line and 2-line titles produce
-            // grid cells of the same height.
+            // Let the title size itself naturally (1 or 2 lines). LazyVGrid
+            // matches the row height to the tallest cell, so a 2-line title
+            // in one cell will push the row taller and the shorter cell shows
+            // a gap below — exactly what we want — while two 1-line titles
+            // leave no empty band between rows.
             Text(item.title)
                 .font(Theme.Typography.callout.weight(.semibold))
                 .foregroundStyle(Theme.Colors.textPrimary)
-                .lineLimit(2, reservesSpace: true)
+                .lineLimit(2)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
 
