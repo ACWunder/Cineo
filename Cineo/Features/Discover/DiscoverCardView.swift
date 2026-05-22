@@ -59,11 +59,12 @@ struct DiscoverCardView: View {
                 // Meta block sits over the poster bottom
                 VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                     if !candidate.genres.isEmpty {
-                        Text(candidate.genres.prefix(3).joined(separator: "  ·  ").uppercased())
-                            .font(Theme.Typography.caption)
-                            .tracking(1.6)
-                            .foregroundStyle(Theme.Colors.accentLight)
-                            .shadow(color: Theme.Colors.accentGlow.opacity(0.4), radius: 6, y: 1)
+                        Text(candidate.genres.prefix(3).joined(separator: " · ").uppercased())
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .tracking(1.2)
+                            .foregroundStyle(Theme.Colors.accentLight.opacity(0.85))
+                            .lineLimit(1)
+                            .shadow(color: Theme.Colors.accentGlow.opacity(0.3), radius: 4, y: 1)
                     }
                     Text(candidate.title)
                         .font(Theme.Typography.title)
@@ -86,7 +87,7 @@ struct DiscoverCardView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .aspectRatio(0.66, contentMode: .fit)
+        .aspectRatio(0.7, contentMode: .fit)
         .background(Theme.Colors.surface)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.xl, style: .continuous))
         .overlay(
