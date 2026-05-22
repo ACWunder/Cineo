@@ -2,9 +2,17 @@ import SwiftUI
 
 struct WatchlistView: View {
 
+    enum MediaFilter: String, CaseIterable, Identifiable {
+        case all = "Alle"
+        case movies = "Filme"
+        case tv = "Serien"
+        var id: String { rawValue }
+    }
+
     @Environment(LibraryRepository.self) private var library
 
     @State private var rateTarget: LibraryItem?
+    @State private var mediaFilter: MediaFilter = .all
 
     // Inline TMDB search
     @State private var searchQuery: String = ""
@@ -16,9 +24,14 @@ struct WatchlistView: View {
     @FocusState private var searchFocused: Bool
 
     private var unwatched: [LibraryItem] {
-        library.items
-            .filter { !$0.watched }
-            .sorted(by: { $0.addedAt > $1.addedAt })
+        let base = library.items.filter { !$0.watched }
+        let filtered: [LibraryItem]
+        switch mediaFilter {
+        case .all:    filtered = base
+        case .movies: filtered = base.filter { $0.mediaType == .movie }
+        case .tv:     filtered = base.filter { $0.mediaType == .tv }
+        }
+        return filtered.sorted(by: { $0.addedAt > $1.addedAt })
     }
 
     var body: some View {
@@ -33,7 +46,13 @@ struct WatchlistView: View {
                     )
                     .padding(.horizontal, Theme.Spacing.md)
                     .padding(.top, Theme.Spacing.xs)
-                    .padding(.bottom, Theme.Spacing.sm)
+                    .padding(.bottom, isSearching ? Theme.Spacing.sm : Theme.Spacing.xs)
+
+                    if !isSearching {
+                        mediaFilterChips
+                            .padding(.horizontal, Theme.Spacing.md)
+                            .padding(.bottom, Theme.Spacing.sm)
+                    }
 
                     if isSearching {
                         searchResultsList
@@ -144,6 +163,48 @@ struct WatchlistView: View {
                 .padding(.horizontal, Theme.Spacing.md)
                 .padding(.vertical, Theme.Spacing.sm)
             }
+        }
+    }
+
+    private var mediaFilterChips: some View {
+        HStack(spacing: 6) {
+            ForEach(MediaFilter.allCases) { option in
+                let isActive = mediaFilter == option
+                Button {
+                    mediaFilter = option
+                } label: {
+                    Text(option.rawValue)
+                        .font(Theme.Typography.footnote.weight(.semibold))
+                        .foregroundStyle(isActive ? Color(hex: 0x2A1A05) : Theme.Colors.textPrimary)
+                        .padding(.horizontal, Theme.Spacing.sm)
+                        .padding(.vertical, 7)
+                        .background(
+                            ZStack {
+                                if isActive {
+                                    Capsule().fill(Theme.Colors.accentGradient)
+                                    Capsule()
+                                        .fill(Theme.Colors.accentSheen)
+                                        .blendMode(.plusLighter)
+                                        .allowsHitTesting(false)
+                                } else {
+                                    Capsule().fill(.ultraThinMaterial.opacity(0.4))
+                                }
+                            }
+                        )
+                        .overlay(
+                            Capsule().stroke(
+                                isActive ? Color.white.opacity(0.28) : Theme.Colors.border,
+                                lineWidth: 0.5
+                            )
+                        )
+                        .shadow(
+                            color: isActive ? Theme.Colors.accentGlow.opacity(0.55) : .clear,
+                            radius: 10, y: 4
+                        )
+                }
+                .buttonStyle(CineoPressStyle(scale: 0.94))
+            }
+            Spacer(minLength: 0)
         }
     }
 
