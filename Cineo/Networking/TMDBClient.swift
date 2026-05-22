@@ -127,7 +127,7 @@ actor TMDBClient {
     }
 }
 
-private enum AnyCachedDetail {
+private nonisolated enum AnyCachedDetail {
     case movie(TMDBMovieDetails)
     case tv(TMDBTVDetails)
 

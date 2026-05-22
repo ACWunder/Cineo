@@ -4,47 +4,186 @@ struct LibraryView: View {
     @Environment(LibraryRepository.self) private var library
     @State private var viewModel = LibraryViewModel()
 
+    // Inline TMDB search
+    @State private var searchQuery: String = ""
+    @State private var searchResults: [TMDBSearchMultiResult] = []
+    @State private var searchIsLoading: Bool = false
+    @State private var searchError: String?
+    @State private var pendingAdd: TMDBSearchMultiResult?
+
+    @FocusState private var searchFocused: Bool
+
     private let columns = [GridItem(.adaptive(minimum: 168), spacing: Theme.Spacing.md)]
 
     var body: some View {
         NavigationStack {
             ZStack {
                 Theme.Colors.background.ignoresSafeArea()
-                if library.isLoading && library.items.isEmpty {
-                    LoadingStateView(message: "Lade Bibliothek …")
-                } else if library.items.isEmpty {
-                    EmptyStateView(
-                        symbol: "books.vertical",
-                        title: "Noch leer hier",
-                        message: "Suche Filme oder Serien und füge sie deiner Bibliothek hinzu."
-                    )
-                } else {
-                    ScrollView {
-                        LazyVGrid(columns: columns, spacing: Theme.Spacing.md) {
-                            ForEach(viewModel.display(from: library.items)) { item in
-                                NavigationLink(value: item) {
-                                    LibraryGridCell(item: item)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.horizontal, Theme.Spacing.md)
-                        .padding(.vertical, Theme.Spacing.sm)
+                VStack(spacing: 0) {
+                    searchBar
+                    if isSearching {
+                        searchResultsList
+                    } else {
+                        libraryGrid
                     }
                 }
             }
-            .navigationTitle("Bibliothek")
-            .toolbarBackground(Theme.Colors.background, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { sortMenu }
-                ToolbarItem(placement: .topBarLeading) { filterMenu }
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: LibraryItem.self) { item in
                 LibraryDetailView(item: item)
             }
         }
+        .task(id: trimmedQuery) {
+            try? await Task.sleep(for: .milliseconds(300))
+            if Task.isCancelled { return }
+            await performSearch()
+        }
+        .sheet(item: $pendingAdd) { item in
+            AddTitleSheet(result: item)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+        }
     }
+
+    // MARK: - Library grid (watched = true)
+
+    private var watchedItems: [LibraryItem] {
+        viewModel.display(from: library.items.filter { $0.watched })
+    }
+
+    @ViewBuilder
+    private var libraryGrid: some View {
+        if library.isLoading && library.items.isEmpty {
+            LoadingStateView(message: "Lade Bibliothek …")
+        } else if watchedItems.isEmpty {
+            EmptyStateView(
+                symbol: "books.vertical",
+                title: "Noch nichts gesehen",
+                message: "Markiere Filme oder Serien als gesehen — sie landen dann hier mit deiner Bewertung."
+            )
+        } else {
+            ScrollView {
+                HStack {
+                    sortMenu
+                    filterMenu
+                    Spacer()
+                }
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.top, Theme.Spacing.xs)
+                .padding(.bottom, Theme.Spacing.sm)
+
+                LazyVGrid(columns: columns, spacing: Theme.Spacing.md) {
+                    ForEach(watchedItems) { item in
+                        NavigationLink(value: item) {
+                            LibraryGridCell(item: item)
+                        }
+                        .buttonStyle(CineoPressStyle(scale: 0.97))
+                    }
+                }
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.bottom, Theme.Spacing.lg)
+            }
+        }
+    }
+
+    // MARK: - Search bar + results
+
+    private var trimmedQuery: String {
+        searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var isSearching: Bool { !trimmedQuery.isEmpty }
+
+    private var searchBar: some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(Theme.Colors.textSecondary)
+            TextField("Film oder Serie hinzufügen …", text: $searchQuery)
+                .focused($searchFocused)
+                .font(Theme.Typography.body)
+                .foregroundStyle(Theme.Colors.textPrimary)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled(true)
+                .submitLabel(.search)
+            if !searchQuery.isEmpty {
+                Button {
+                    searchQuery = ""
+                    searchResults = []
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, Theme.Spacing.md)
+        .frame(height: 48)
+        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous)
+                .strokeBorder(Theme.Colors.border, lineWidth: 0.5)
+        )
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.top, Theme.Spacing.xs)
+        .padding(.bottom, Theme.Spacing.sm)
+    }
+
+    @ViewBuilder
+    private var searchResultsList: some View {
+        if searchIsLoading && searchResults.isEmpty {
+            LoadingStateView(message: "Suche …")
+        } else if let searchError {
+            EmptyStateView(
+                symbol: "exclamationmark.triangle",
+                title: "Hat nicht geklappt",
+                message: searchError
+            )
+        } else if searchResults.isEmpty {
+            EmptyStateView(
+                symbol: "moon.zzz",
+                title: "Keine Treffer",
+                message: "Versuch einen anderen Suchbegriff."
+            )
+        } else {
+            ScrollView {
+                LazyVStack(spacing: Theme.Spacing.sm) {
+                    ForEach(searchResults, id: \.id) { item in
+                        SearchResultRow(
+                            result: item,
+                            isInLibrary: library.contains(tmdbId: item.id)
+                        ) {
+                            pendingAdd = item
+                        }
+                    }
+                }
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.vertical, Theme.Spacing.sm)
+            }
+        }
+    }
+
+    private func performSearch() async {
+        let q = trimmedQuery
+        guard !q.isEmpty else {
+            searchResults = []
+            searchError = nil
+            return
+        }
+        searchIsLoading = true
+        defer { searchIsLoading = false }
+        do {
+            let res = try await TMDBClient.shared.searchMulti(query: q)
+            searchResults = res
+            searchError = nil
+        } catch let err as TMDBError {
+            searchError = err.localizedDescription
+        } catch let err {
+            searchError = err.localizedDescription
+        }
+    }
+
+    // MARK: - Sort + filter
 
     private var sortMenu: some View {
         @Bindable var vm = viewModel
@@ -53,8 +192,13 @@ struct LibraryView: View {
                 ForEach(LibraryViewModel.Sort.allCases) { Text($0.rawValue).tag($0) }
             }
         } label: {
-            Image(systemName: "arrow.up.arrow.down")
-                .foregroundStyle(Theme.Colors.accent)
+            Label("Sortieren", systemImage: "arrow.up.arrow.down")
+                .font(Theme.Typography.footnote.weight(.semibold))
+                .foregroundStyle(Theme.Colors.accentLight)
+                .padding(.horizontal, Theme.Spacing.sm)
+                .padding(.vertical, 6)
+                .background(Theme.Colors.surface, in: Capsule())
+                .overlay(Capsule().strokeBorder(Theme.Colors.border, lineWidth: 0.5))
         }
     }
 
@@ -65,8 +209,13 @@ struct LibraryView: View {
                 ForEach(LibraryViewModel.Filter.allCases) { Text($0.rawValue).tag($0) }
             }
         } label: {
-            Image(systemName: "line.3.horizontal.decrease.circle")
-                .foregroundStyle(Theme.Colors.accent)
+            Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
+                .font(Theme.Typography.footnote.weight(.semibold))
+                .foregroundStyle(Theme.Colors.accentLight)
+                .padding(.horizontal, Theme.Spacing.sm)
+                .padding(.vertical, 6)
+                .background(Theme.Colors.surface, in: Capsule())
+                .overlay(Capsule().strokeBorder(Theme.Colors.border, lineWidth: 0.5))
         }
     }
 }
@@ -86,11 +235,57 @@ private struct LibraryGridCell: View {
                         .font(Theme.Typography.caption)
                         .foregroundStyle(Theme.Colors.textSecondary)
                 }
+                Spacer()
                 if let r = item.rating {
-                    Spacer()
                     StarRatingDisplay(rating: r, size: 11)
                 }
             }
         }
+    }
+}
+
+private struct SearchResultRow: View {
+    let result: TMDBSearchMultiResult
+    let isInLibrary: Bool
+    let onAdd: () -> Void
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            PosterView(path: result.posterPath, size: "w342", radius: Theme.Radius.md, shadow: false)
+                .frame(width: 84)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(result.displayTitle)
+                    .font(Theme.Typography.headline)
+                    .foregroundStyle(Theme.Colors.textPrimary)
+                    .lineLimit(2)
+
+                HStack(spacing: Theme.Spacing.xs) {
+                    if let mt = result.resolvedMediaType {
+                        Label(mt.displayName, systemImage: mt.symbol)
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                    }
+                    if !result.year.isEmpty {
+                        Text("·").foregroundStyle(Theme.Colors.textTertiary)
+                        Text(result.year)
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                    }
+                }
+            }
+
+            Spacer()
+
+            Button(action: onAdd) {
+                Image(systemName: isInLibrary ? "checkmark.circle.fill" : "plus.circle.fill")
+                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .foregroundStyle(isInLibrary ? Theme.Colors.success : Theme.Colors.accentLight)
+                    .frame(width: 56, height: 56)
+            }
+            .buttonStyle(CineoPressStyle(scale: 0.9))
+            .disabled(isInLibrary)
+        }
+        .cineoCard(padding: Theme.Spacing.sm)
     }
 }

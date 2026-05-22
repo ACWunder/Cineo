@@ -5,28 +5,35 @@ struct SeasonsView: View {
     @State private var viewModel = SeasonsViewModel()
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Theme.Colors.background.ignoresSafeArea()
+        ZStack {
+            Theme.Colors.background.ignoresSafeArea()
+            VStack(spacing: 0) {
+                topBar
                 content
-            }
-            .navigationTitle("Staffeln")
-            .toolbarBackground(Theme.Colors.background, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await viewModel.reload(library: library.items) }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .foregroundStyle(Theme.Colors.accent)
-                    }
-                }
             }
         }
         .task(id: library.items.map(\.tmdbId)) {
             await viewModel.reload(library: library.items)
         }
+    }
+
+    private var topBar: some View {
+        HStack {
+            Spacer()
+            Button {
+                Task { await viewModel.reload(library: library.items) }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.Colors.accentLight)
+                    .frame(width: 44, height: 44)
+                    .background(Theme.Colors.surfaceElevated, in: Circle())
+                    .overlay(Circle().strokeBorder(Theme.Colors.border, lineWidth: 0.5))
+            }
+            .buttonStyle(CineoPressStyle(scale: 0.92))
+        }
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.top, Theme.Spacing.xs)
     }
 
     @ViewBuilder

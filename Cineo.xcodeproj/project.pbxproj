@@ -117,13 +117,13 @@
 			);
 			mainGroup = 5E69EE412FC0C2ED008DB2C4;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D101000000000000000000B1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5E69EE4B2FC0C2ED008DB2C4 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
-			packageReferences = (
-				D101000000000000000000B1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
-			);
 			targets = (
 				5E69EE492FC0C2ED008DB2C4 /* Cineo */,
 			);

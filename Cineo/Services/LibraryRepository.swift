@@ -53,10 +53,26 @@ final class LibraryRepository {
         }
     }
 
+    /// Only updates the rating. Leaves `watched` untouched (used by the
+    /// LibraryDetailView slider, where the item is already watched).
     func updateRating(tmdbId: Int, rating: Int?) async {
         guard let uid else { return }
         let ref = db.collection("users").document(uid).collection("library").document(String(tmdbId))
-        var data: [String: Any] = ["watched": rating != nil]
+        var data: [String: Any] = [:]
+        if let rating { data["rating"] = rating } else { data["rating"] = FieldValue.delete() }
+        do {
+            try await ref.updateData(data)
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Promotes a watchlist item into the library: sets `watched = true` and
+    /// applies the rating (or removes it on skip). Atomic update.
+    func markWatched(tmdbId: Int, rating: Int?) async {
+        guard let uid else { return }
+        let ref = db.collection("users").document(uid).collection("library").document(String(tmdbId))
+        var data: [String: Any] = ["watched": true]
         if let rating { data["rating"] = rating } else { data["rating"] = FieldValue.delete() }
         do {
             try await ref.updateData(data)

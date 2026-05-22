@@ -10,7 +10,6 @@ struct DiscoverView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var viewModel = DiscoverViewModel()
-    @State private var ratingDraft: Int = 0
     @State private var ratingCandidate: DiscoverViewModel.Candidate?
     @State private var offset: CGSize = .zero
     @State private var didInitialLoad: Bool = false
@@ -21,24 +20,22 @@ struct DiscoverView: View {
     private let maxRotation: Double = 12
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Theme.Colors.background.ignoresSafeArea()
+        ZStack {
+            Theme.Colors.background.ignoresSafeArea()
+            VStack(spacing: 0) {
+                topBar
                 content
             }
-            .navigationTitle("Empfehlungen")
-            .toolbarBackground(Theme.Colors.background, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await reload() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 17, weight: .semibold, design: .rounded))
-                            .foregroundStyle(Theme.Colors.accentLight)
-                    }
-                }
+            if let candidate = ratingCandidate {
+                RatingOverlay(
+                    title: candidate.title,
+                    posterPath: candidate.posterPath,
+                    onRate: { value in commitRating(value, for: candidate) },
+                    onSkip: { commitRating(nil, for: candidate) },
+                    onCancel: { ratingCandidate = nil }
+                )
+                .zIndex(99)
+                .animation(reduceMotion ? Theme.Motion.reduced : Theme.Motion.spring, value: ratingCandidate)
             }
         }
         .task {
@@ -47,25 +44,25 @@ struct DiscoverView: View {
                 await reload()
             }
         }
-        .sheet(item: $ratingCandidate) { candidate in
-            RatingSheet(
-                title: candidate.title,
-                rating: $ratingDraft,
-                onSave: { value in
-                    Task {
-                        let item = viewModel.toLibraryItem(candidate, rating: value, watched: true)
-                        await library.add(item)
-                        ratingDraft = 0
-                        ratingCandidate = nil
-                    }
-                },
-                onCancel: {
-                    ratingDraft = 0
-                    ratingCandidate = nil
-                }
-            )
-            .presentationDetents([.medium])
+    }
+
+    private var topBar: some View {
+        HStack {
+            Spacer()
+            Button {
+                Task { await reload() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.Colors.accentLight)
+                    .frame(width: 44, height: 44)
+                    .background(Theme.Colors.surfaceElevated, in: Circle())
+                    .overlay(Circle().strokeBorder(Theme.Colors.border, lineWidth: 0.5))
+            }
+            .buttonStyle(CineoPressStyle(scale: 0.92))
         }
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.top, Theme.Spacing.xs)
     }
 
     @ViewBuilder
@@ -86,7 +83,7 @@ struct DiscoverView: View {
                 symbol: viewModel.emptyLibrary ? "sparkles" : "checkmark.seal",
                 title: viewModel.emptyLibrary ? "Bewerte ein paar Titel" : "Alles gesichtet",
                 message: viewModel.emptyLibrary
-                    ? "Füge Filme oder Serien in der Suche hinzu und bewerte sie. Dann lernt Cineo deinen Geschmack kennen."
+                    ? "Füge Filme oder Serien in der Bibliothek hinzu und bewerte sie. Dann lernt Cineo deinen Geschmack kennen."
                     : "Komm später wieder — oder lade neue Vorschläge."
             )
         } else {
@@ -182,14 +179,17 @@ struct DiscoverView: View {
 
     private func actionButtons(for candidate: DiscoverViewModel.Candidate) -> some View {
         HStack(spacing: Theme.Spacing.lg) {
-            CircleActionButton(symbol: "xmark", kind: .neutral, size: Theme.Layout.circleActionMd) {
+            // X — dismiss
+            CircleActionButton(symbol: "xmark", kind: .neutral, size: Theme.Layout.circleActionLg) {
                 triggerSwipe(.left, for: candidate)
             }
-            CircleActionButton(symbol: "plus", kind: .accent, size: Theme.Layout.circleActionLg) {
-                Task { await plusAction(candidate) }
+            // Plus — smaller — adds to watchlist
+            CircleActionButton(symbol: "plus", kind: .accent, size: Theme.Layout.circleActionMd) {
+                Task { await addToWatchlist(candidate) }
             }
-            CircleActionButton(symbol: "eye.fill", kind: .neutral, size: Theme.Layout.circleActionMd) {
-                triggerSwipe(.right, for: candidate)
+            // Eye — opens rating overlay
+            CircleActionButton(symbol: "eye.fill", kind: .accent, size: Theme.Layout.circleActionLg) {
+                openRating(for: candidate)
             }
         }
         .frame(maxWidth: .infinity)
@@ -247,23 +247,40 @@ struct DiscoverView: View {
             switch direction {
             case .left:
                 await dismissed.dismiss(tmdbId: candidate.tmdbId, mediaType: candidate.mediaType)
+                viewModel.popTop()
             case .right:
-                ratingDraft = 0
-                ratingCandidate = candidate
+                // Right swipe = "Gesehen" — open rating overlay without removing
+                // the card from the stack until the user finishes the overlay.
+                openRating(for: candidate)
             }
-            viewModel.popTop()
             offset = .zero
             flyingOut = false
         }
     }
 
-    private func plusAction(_ candidate: DiscoverViewModel.Candidate) async {
+    // MARK: - Watchlist / Rating
+
+    private func openRating(for candidate: DiscoverViewModel.Candidate) {
+        hapticConfirm()
+        ratingCandidate = candidate
+    }
+
+    private func commitRating(_ value: Int?, for candidate: DiscoverViewModel.Candidate) {
+        Task {
+            let item = viewModel.toLibraryItem(candidate, rating: value, watched: true)
+            await library.add(item)
+            ratingCandidate = nil
+            viewModel.popTop()
+        }
+    }
+
+    private func addToWatchlist(_ candidate: DiscoverViewModel.Candidate) async {
         hapticConfirm()
         let item = viewModel.toLibraryItem(candidate, rating: nil, watched: false)
         await library.add(item)
         if !reduceMotion {
             withAnimation(.easeOut(duration: 0.28)) {
-                offset = CGSize(width: 0, height: -800)
+                offset = CGSize(width: 0, height: -700)
                 flyingOut = true
             }
         } else {
@@ -280,15 +297,13 @@ struct DiscoverView: View {
 
     private func hapticEdge() {
 #if canImport(UIKit)
-        let gen = UIImpactFeedbackGenerator(style: .light)
-        gen.impactOccurred()
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
 #endif
     }
 
     private func hapticConfirm() {
 #if canImport(UIKit)
-        let gen = UIImpactFeedbackGenerator(style: .medium)
-        gen.impactOccurred()
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 #endif
     }
 
