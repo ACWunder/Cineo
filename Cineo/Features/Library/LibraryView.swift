@@ -321,7 +321,7 @@ private struct LibraryGridCell: View {
     let item: LibraryItem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+        VStack(alignment: .center, spacing: Theme.Spacing.xs) {
             PosterView(path: item.posterPath, size: "w342", radius: Theme.Radius.md)
 
             // Always reserve 2 lines so 1-line and 2-line titles produce
@@ -330,17 +330,17 @@ private struct LibraryGridCell: View {
                 .font(Theme.Typography.callout.weight(.semibold))
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .lineLimit(2, reservesSpace: true)
-                .multilineTextAlignment(.leading)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
 
             // Always render the meta line at a fixed height so cells stay
             // aligned even when the rating is missing.
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 if !item.year.isEmpty {
                     Text(item.year)
                         .font(Theme.Typography.caption)
                         .foregroundStyle(Theme.Colors.textSecondary)
                 }
-                Spacer(minLength: 4)
                 if let r = item.rating, r > 0 {
                     StarRatingDisplay(rating: r, size: 11)
                 } else {
@@ -349,6 +349,7 @@ private struct LibraryGridCell: View {
                         .foregroundStyle(Theme.Colors.textTertiary)
                 }
             }
+            .frame(maxWidth: .infinity)
             .frame(height: 14)
         }
     }
