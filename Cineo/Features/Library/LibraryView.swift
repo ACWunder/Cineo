@@ -75,14 +75,9 @@ struct LibraryView: View {
             )
         } else {
             ScrollView {
-                HStack {
-                    sortMenu
-                    filterMenu
-                    Spacer()
-                }
-                .padding(.horizontal, Theme.Spacing.md)
-                .padding(.top, Theme.Spacing.xs)
-                .padding(.bottom, Theme.Spacing.sm)
+                filterStrip
+                    .padding(.top, Theme.Spacing.xs)
+                    .padding(.bottom, Theme.Spacing.sm)
 
                 if watchedItems.isEmpty {
                     filterEmptyState
@@ -115,7 +110,7 @@ struct LibraryView: View {
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .multilineTextAlignment(.center)
             Button {
-                viewModel.filter = .all
+                viewModel.resetFilters()
             } label: {
                 Text("Filter zurücksetzen")
                     .font(Theme.Typography.footnote.weight(.semibold))
@@ -280,40 +275,196 @@ struct LibraryView: View {
         }
     }
 
-    // MARK: - Sort + filter
+    // MARK: - Filter strip
+
+    private var filterStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Theme.Spacing.xs) {
+                sortMenu
+                mediaTypePills
+                ratingMenu
+                genreMenu
+            }
+            .padding(.horizontal, Theme.Spacing.md)
+        }
+        .scrollClipDisabled()
+    }
 
     private var sortMenu: some View {
         @Bindable var vm = viewModel
         return Menu {
             Picker("Sortieren", selection: $vm.sort) {
-                ForEach(LibraryViewModel.Sort.allCases) { Text($0.rawValue).tag($0) }
+                ForEach(LibraryViewModel.Sort.allCases) { sort in
+                    Label(sort.rawValue, systemImage: sort.symbol).tag(sort)
+                }
             }
         } label: {
-            Label("Sortieren", systemImage: "arrow.up.arrow.down")
-                .font(Theme.Typography.footnote.weight(.semibold))
+            Image(systemName: "arrow.up.arrow.down")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(Theme.Colors.accentLight)
-                .padding(.horizontal, Theme.Spacing.sm)
-                .padding(.vertical, 6)
-                .background(Theme.Colors.surface, in: Capsule())
-                .overlay(Capsule().strokeBorder(Theme.Colors.border, lineWidth: 0.5))
+                .frame(width: 34, height: 34)
+                .background(.ultraThinMaterial.opacity(0.4), in: Circle())
+                .overlay(
+                    Circle().stroke(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.14), Color.white.opacity(0.03)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.5
+                    )
+                )
         }
     }
 
-    private var filterMenu: some View {
+    private var mediaTypePills: some View {
         @Bindable var vm = viewModel
+        return HStack(spacing: 4) {
+            ForEach(LibraryViewModel.MediaTypeFilter.allCases) { option in
+                let isActive = vm.mediaType == option
+                Button {
+                    vm.mediaType = option
+                } label: {
+                    Text(option.rawValue)
+                        .font(Theme.Typography.footnote.weight(.semibold))
+                        .foregroundStyle(isActive ? Color(hex: 0x2A1A05) : Theme.Colors.textPrimary)
+                        .padding(.horizontal, Theme.Spacing.sm)
+                        .padding(.vertical, 7)
+                        .background(
+                            ZStack {
+                                if isActive {
+                                    Capsule().fill(Theme.Colors.accentGradient)
+                                    Capsule()
+                                        .fill(Theme.Colors.accentSheen)
+                                        .blendMode(.plusLighter)
+                                        .allowsHitTesting(false)
+                                } else {
+                                    Capsule().fill(.ultraThinMaterial.opacity(0.4))
+                                }
+                            }
+                        )
+                        .overlay(
+                            Capsule().stroke(
+                                isActive ? Color.white.opacity(0.28) : Theme.Colors.border,
+                                lineWidth: 0.5
+                            )
+                        )
+                        .shadow(
+                            color: isActive ? Theme.Colors.accentGlow.opacity(0.55) : .clear,
+                            radius: 10, y: 4
+                        )
+                }
+                .buttonStyle(CineoPressStyle(scale: 0.94))
+            }
+        }
+    }
+
+    private var ratingMenu: some View {
+        @Bindable var vm = viewModel
+        let isActive = vm.minRating > 0
         return Menu {
-            Picker("Filter", selection: $vm.filter) {
-                ForEach(LibraryViewModel.Filter.allCases) { Text($0.rawValue).tag($0) }
+            Button {
+                vm.minRating = 0
+            } label: {
+                Label("Alle Bewertungen", systemImage: vm.minRating == 0 ? "checkmark" : "")
+            }
+            Divider()
+            ForEach(Array((1...5).reversed()), id: \.self) { stars in
+                Button {
+                    vm.minRating = stars
+                } label: {
+                    Label("ab \(stars) \(stars == 1 ? "Stern" : "Sternen")",
+                          systemImage: vm.minRating == stars ? "checkmark" : "")
+                }
             }
         } label: {
-            Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
-                .font(Theme.Typography.footnote.weight(.semibold))
-                .foregroundStyle(Theme.Colors.accentLight)
-                .padding(.horizontal, Theme.Spacing.sm)
-                .padding(.vertical, 6)
-                .background(Theme.Colors.surface, in: Capsule())
-                .overlay(Capsule().strokeBorder(Theme.Colors.border, lineWidth: 0.5))
+            filterPillLabel(
+                icon: "star.fill",
+                text: isActive ? "ab \(vm.minRating)\u{2009}\u{2605}" : "Bewertung",
+                isActive: isActive
+            )
         }
+    }
+
+    private var genreMenu: some View {
+        @Bindable var vm = viewModel
+        let genres = uniqueGenres()
+        let isActive = !vm.selectedGenres.isEmpty
+        return Menu {
+            if isActive {
+                Button("Alle Genres zurücksetzen", role: .destructive) {
+                    vm.selectedGenres = []
+                }
+                Divider()
+            }
+            ForEach(genres, id: \.self) { genre in
+                Button {
+                    if vm.selectedGenres.contains(genre) {
+                        vm.selectedGenres.remove(genre)
+                    } else {
+                        vm.selectedGenres.insert(genre)
+                    }
+                } label: {
+                    Label(genre, systemImage: vm.selectedGenres.contains(genre) ? "checkmark" : "")
+                }
+            }
+        } label: {
+            let count = vm.selectedGenres.count
+            filterPillLabel(
+                icon: "tag.fill",
+                text: isActive ? "Genre · \(count)" : "Genre",
+                isActive: isActive
+            )
+        }
+        .disabled(genres.isEmpty)
+    }
+
+    private func filterPillLabel(icon: String, text: String, isActive: Bool) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+            Text(text)
+                .font(Theme.Typography.footnote.weight(.semibold))
+            Image(systemName: "chevron.down")
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .opacity(0.7)
+        }
+        .foregroundStyle(isActive ? Color(hex: 0x2A1A05) : Theme.Colors.textPrimary)
+        .padding(.horizontal, Theme.Spacing.sm)
+        .padding(.vertical, 7)
+        .background(
+            ZStack {
+                if isActive {
+                    Capsule().fill(Theme.Colors.accentGradient)
+                    Capsule()
+                        .fill(Theme.Colors.accentSheen)
+                        .blendMode(.plusLighter)
+                        .allowsHitTesting(false)
+                } else {
+                    Capsule().fill(.ultraThinMaterial.opacity(0.4))
+                }
+            }
+        )
+        .overlay(
+            Capsule().stroke(
+                isActive ? Color.white.opacity(0.28) : Theme.Colors.border,
+                lineWidth: 0.5
+            )
+        )
+        .shadow(
+            color: isActive ? Theme.Colors.accentGlow.opacity(0.55) : .clear,
+            radius: 10, y: 4
+        )
+    }
+
+    /// Unique sorted genres harvested from the user's watched library — feeds
+    /// the multi-select Genre menu.
+    private func uniqueGenres() -> [String] {
+        var seen = Set<String>()
+        for item in library.items where item.watched {
+            for g in item.genres { seen.insert(g) }
+        }
+        return seen.sorted()
     }
 }
 

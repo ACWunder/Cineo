@@ -9,28 +9,51 @@ final class LibraryViewModel {
         case rating = "Bewertung"
         case title = "Titel"
         var id: String { rawValue }
+
+        var symbol: String {
+            switch self {
+            case .addedAt: "clock"
+            case .rating: "star.fill"
+            case .title: "textformat"
+            }
+        }
     }
 
-    enum Filter: String, CaseIterable, Identifiable {
+    enum MediaTypeFilter: String, CaseIterable, Identifiable {
         case all = "Alle"
         case movies = "Filme"
         case tv = "Serien"
-        case unrated = "Ohne Bewertung"
         var id: String { rawValue }
     }
 
     var sort: Sort = .addedAt
-    var filter: Filter = .all
+    var mediaType: MediaTypeFilter = .all
+    var minRating: Int = 0                 // 0 = no filter, 1...5 = ab N Sterne
+    var selectedGenres: Set<String> = []   // empty = no filter
+
+    var hasActiveFilters: Bool {
+        mediaType != .all || minRating > 0 || !selectedGenres.isEmpty
+    }
 
     func display(from items: [LibraryItem]) -> [LibraryItem] {
-        let filtered = items.filter { item in
-            switch filter {
-            case .all: true
-            case .movies: item.mediaType == .movie
-            case .tv: item.mediaType == .tv
-            case .unrated: item.rating == nil
+        var filtered = items
+
+        switch mediaType {
+        case .all: break
+        case .movies: filtered = filtered.filter { $0.mediaType == .movie }
+        case .tv:     filtered = filtered.filter { $0.mediaType == .tv }
+        }
+
+        if minRating > 0 {
+            filtered = filtered.filter { ($0.rating ?? 0) >= minRating }
+        }
+
+        if !selectedGenres.isEmpty {
+            filtered = filtered.filter { item in
+                !selectedGenres.intersection(item.genres).isEmpty
             }
         }
+
         switch sort {
         case .addedAt:
             return filtered.sorted(by: { $0.addedAt > $1.addedAt })
@@ -39,5 +62,11 @@ final class LibraryViewModel {
         case .title:
             return filtered.sorted(by: { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending })
         }
+    }
+
+    func resetFilters() {
+        mediaType = .all
+        minRating = 0
+        selectedGenres = []
     }
 }
