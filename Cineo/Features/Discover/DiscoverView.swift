@@ -69,6 +69,8 @@ struct DiscoverView: View {
             filterChips
             Spacer(minLength: 0)
         }
+        .frame(height: 40)   // matches the previous reload-button height so the
+                             // filter chips sit at the same vertical position
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.bottom, Theme.Spacing.sm)
     }
