@@ -9,18 +9,36 @@ struct LibraryDetailView: View {
     @State private var rating: Int = 0
     @State private var showDeleteConfirm: Bool = false
     @State private var isSaving: Bool = false
+    @State private var showRatingOverlay: Bool = false
+
+    private var isInLibrary: Bool { library.contains(tmdbId: item.tmdbId) }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: Theme.Spacing.lg) {
-                hero
-                ratingBox
-                genreChips
-                descriptionBox
-                actions
+        ZStack {
+            ScrollView {
+                VStack(spacing: Theme.Spacing.lg) {
+                    hero
+                    if isInLibrary {
+                        ratingBox
+                    }
+                    genreChips
+                    descriptionBox
+                    actions
+                }
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.vertical, Theme.Spacing.md)
             }
-            .padding(.horizontal, Theme.Spacing.md)
-            .padding(.vertical, Theme.Spacing.md)
+
+            if showRatingOverlay {
+                RatingOverlay(
+                    title: item.title,
+                    posterPath: item.posterPath,
+                    onRate: { value in saveDiscoverRating(value) },
+                    onSkip: { saveDiscoverRating(nil) },
+                    onCancel: { showRatingOverlay = false }
+                )
+                .zIndex(99)
+            }
         }
         .background(Theme.Colors.background.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
@@ -37,6 +55,28 @@ struct LibraryDetailView: View {
             Button("Abbrechen", role: .cancel) {}
         } message: {
             Text("Du kannst „\(item.title)“ später wieder hinzufügen.")
+        }
+    }
+
+    private func saveDiscoverRating(_ value: Int?) {
+        Task {
+            // Add as watched=true with rating, then drop the overlay and
+            // pop back so the next discover card surfaces.
+            let watched = LibraryItem(
+                tmdbId: item.tmdbId,
+                mediaType: item.mediaType,
+                title: item.title,
+                overview: item.overview,
+                year: item.year,
+                posterPath: item.posterPath,
+                genres: item.genres,
+                rating: value,
+                watched: true,
+                addedAt: Date()
+            )
+            await library.add(watched)
+            showRatingOverlay = false
+            dismiss()
         }
     }
 
@@ -128,17 +168,45 @@ struct LibraryDetailView: View {
         }
     }
 
+    @ViewBuilder
     private var actions: some View {
-        VStack(spacing: Theme.Spacing.sm) {
-            PrimaryButton(
-                title: item.watched ? "Als ungesehen markieren" : "Als gesehen markieren",
-                symbol: item.watched ? "eye.slash" : "eye",
-                kind: .neutral
-            ) {
-                Task { await library.setWatched(tmdbId: item.tmdbId, watched: !item.watched) }
+        if isInLibrary {
+            VStack(spacing: Theme.Spacing.sm) {
+                PrimaryButton(
+                    title: item.watched ? "Als ungesehen markieren" : "Als gesehen markieren",
+                    symbol: item.watched ? "eye.slash" : "eye",
+                    kind: .neutral
+                ) {
+                    Task { await library.setWatched(tmdbId: item.tmdbId, watched: !item.watched) }
+                }
+                PrimaryButton(title: "Aus Bibliothek entfernen", symbol: "trash", kind: .danger) {
+                    showDeleteConfirm = true
+                }
             }
-            PrimaryButton(title: "Aus Bibliothek entfernen", symbol: "trash", kind: .danger) {
-                showDeleteConfirm = true
+        } else {
+            // Discover-mode: item isn't tracked yet.
+            VStack(spacing: Theme.Spacing.sm) {
+                PrimaryButton(title: "Schon gesehen — bewerten", symbol: "star.fill", kind: .accent) {
+                    showRatingOverlay = true
+                }
+                PrimaryButton(title: "Zur Watchlist", symbol: "bookmark", kind: .neutral) {
+                    Task {
+                        let watchlistItem = LibraryItem(
+                            tmdbId: item.tmdbId,
+                            mediaType: item.mediaType,
+                            title: item.title,
+                            overview: item.overview,
+                            year: item.year,
+                            posterPath: item.posterPath,
+                            genres: item.genres,
+                            rating: nil,
+                            watched: false,
+                            addedAt: Date()
+                        )
+                        await library.add(watchlistItem)
+                        dismiss()
+                    }
+                }
             }
         }
     }

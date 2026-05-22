@@ -15,27 +15,34 @@ struct DiscoverView: View {
     @State private var didInitialLoad: Bool = false
     @State private var didCrossThreshold: Bool = false
     @State private var flyingOut: Bool = false
+    @State private var path = NavigationPath()
 
     private let swipeThreshold: CGFloat = 110
     private let maxRotation: Double = 12
 
     var body: some View {
-        ZStack {
-            Theme.Colors.background.ignoresSafeArea()
-            VStack(spacing: 0) {
-                topBar
-                content
+        NavigationStack(path: $path) {
+            ZStack {
+                Theme.Colors.background.ignoresSafeArea()
+                VStack(spacing: 0) {
+                    topBar
+                    content
+                }
+                if let candidate = ratingCandidate {
+                    RatingOverlay(
+                        title: candidate.title,
+                        posterPath: candidate.posterPath,
+                        onRate: { value in commitRating(value, for: candidate) },
+                        onSkip: { commitRating(nil, for: candidate) },
+                        onCancel: { ratingCandidate = nil }
+                    )
+                    .zIndex(99)
+                    .animation(reduceMotion ? Theme.Motion.reduced : Theme.Motion.spring, value: ratingCandidate)
+                }
             }
-            if let candidate = ratingCandidate {
-                RatingOverlay(
-                    title: candidate.title,
-                    posterPath: candidate.posterPath,
-                    onRate: { value in commitRating(value, for: candidate) },
-                    onSkip: { commitRating(nil, for: candidate) },
-                    onCancel: { ratingCandidate = nil }
-                )
-                .zIndex(99)
-                .animation(reduceMotion ? Theme.Motion.reduced : Theme.Motion.spring, value: ratingCandidate)
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: LibraryItem.self) { item in
+                LibraryDetailView(item: item)
             }
         }
         .task {
@@ -175,6 +182,11 @@ struct DiscoverView: View {
                     .opacity(isTop && flyingOut ? 0 : 1)
                     .zIndex(Double(10 - depth))
                     .gesture(isTop ? dragGesture(for: candidate) : nil)
+                    .onTapGesture {
+                        if isTop {
+                            path.append(viewModel.toLibraryItem(candidate, rating: nil, watched: false))
+                        }
+                    }
                     .animation(motion, value: offset)
                     .animation(motion, value: flyingOut)
                     .accessibilityElement(children: .combine)
