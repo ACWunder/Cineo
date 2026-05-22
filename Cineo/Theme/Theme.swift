@@ -5,7 +5,7 @@ enum Theme {
     // MARK: - Colors
 
     enum Colors {
-        // Backgrounds — near-black anthracite with a hint of warmth (Netflix-ish).
+        // Backgrounds — near-black anthracite with a warm hint.
         static let background = Color(hex: 0x07080C)
         static let backgroundElevated = Color(hex: 0x0E0F14)
         static let surface = Color(hex: 0x14151B)
@@ -13,29 +13,51 @@ enum Theme {
         static let border = Color(hex: 0x2A2B36)
         static let borderSubtle = Color(hex: 0x1F2029)
 
-        // Accent — cinema gold
-        static let accent = Color(hex: 0xE8C46A)
-        static let accentLight = Color(hex: 0xF4D88F)
-        static let accentDark = Color(hex: 0xB8932F)
+        // Accent — saturated cinema gold (brighter than the previous mute tone)
+        static let accent = Color(hex: 0xFFC65A)
+        static let accentLight = Color(hex: 0xFFE08A)
+        static let accentBright = Color(hex: 0xFFF1C7)   // near-white highlight
+        static let accentDark = Color(hex: 0x8F5F18)
+        static let accentDeep = Color(hex: 0x4D2F08)     // shadow tail
 
-        // Diagonal gold gradient for primary fills + highlights
+        // Glossy gold gradient — bright highlight upper-left → deep gold lower-right
         static let accentGradient = LinearGradient(
-            colors: [Color(hex: 0xF4D88F), Color(hex: 0xC9A14A)],
+            stops: [
+                .init(color: Color(hex: 0xFFE9A8), location: 0.0),
+                .init(color: Color(hex: 0xFFC65A), location: 0.45),
+                .init(color: Color(hex: 0xC68A2A), location: 1.0)
+            ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
-        // Soft gold halo used around hero cards / primary buttons
-        static let accentGlow = Color(hex: 0xE8C46A).opacity(0.32)
 
-        // Background radial — subtle warm spotlight from top
-        static let backgroundGlow = RadialGradient(
-            colors: [Color(hex: 0x1A1410).opacity(0.85), Color(hex: 0x07080C)],
-            center: .init(x: 0.5, y: -0.1),
-            startRadius: 40,
-            endRadius: 600
+        // Specular sheen — diagonal white wash for glossy surfaces
+        static let accentSheen = LinearGradient(
+            stops: [
+                .init(color: Color.white.opacity(0.55), location: 0.0),
+                .init(color: Color.white.opacity(0.12), location: 0.35),
+                .init(color: Color.clear, location: 0.65)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
         )
 
-        // Dismiss tint (left swipe) — muted ember red, not loud
+        // Soft halo around the primary action
+        static let accentGlow = Color(hex: 0xFFB347).opacity(0.45)
+
+        // Background radial — warm spotlight from the top
+        static let backgroundGlow = RadialGradient(
+            stops: [
+                .init(color: Color(hex: 0x3A1F0C).opacity(0.7), location: 0.0),
+                .init(color: Color(hex: 0x1A0E08).opacity(0.45), location: 0.35),
+                .init(color: Color(hex: 0x07080C).opacity(0.0), location: 1.0)
+            ],
+            center: .init(x: 0.5, y: -0.05),
+            startRadius: 40,
+            endRadius: 700
+        )
+
+        // Dismiss tint (left swipe) — muted ember red
         static let dismissTint = Color(hex: 0xCE6B5A)
 
         // Texts
@@ -44,7 +66,7 @@ enum Theme {
         static let textTertiary = Color(hex: 0x5E5F58)
 
         // Stars (gold)
-        static let starFilled = Color(hex: 0xE8C46A)
+        static let starFilled = Color(hex: 0xFFC65A)
         static let starEmpty = Color(hex: 0x2A2B36)
 
         // Danger
@@ -140,7 +162,6 @@ struct CineoBackground: ViewModifier {
                 ZStack {
                     Theme.Colors.background
                     Theme.Colors.backgroundGlow
-                        .opacity(0.7)
                         .blendMode(.plusLighter)
                 }
                 .ignoresSafeArea()
@@ -152,7 +173,7 @@ struct CineoBackground: ViewModifier {
 extension View {
     func cineoBackground() -> some View { modifier(CineoBackground()) }
 
-    /// Surface card style — depth through brightness, not heavy shadows.
+    /// Surface card style.
     func cineoCard(padding: CGFloat = Theme.Spacing.md,
                    radius: CGFloat = Theme.Radius.card,
                    elevated: Bool = false) -> some View {
@@ -167,11 +188,30 @@ extension View {
                     .strokeBorder(Theme.Colors.borderSubtle, lineWidth: 0.5)
             )
     }
+
+    /// Adds a glossy sheen on top of a primary gold surface.
+    func goldSheen(corner: CGFloat) -> some View {
+        self.overlay(
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .fill(Theme.Colors.accentSheen)
+                .blendMode(.plusLighter)
+                .allowsHitTesting(false)
+        )
+    }
+
+    /// Adds a glossy sheen on top of a circular gold surface.
+    func goldSheenCircle() -> some View {
+        self.overlay(
+            Circle()
+                .fill(Theme.Colors.accentSheen)
+                .blendMode(.plusLighter)
+                .allowsHitTesting(false)
+        )
+    }
 }
 
 // MARK: - Button press style
 
-/// Scales to ~0.96 on press with a snappy spring.
 struct CineoPressStyle: ButtonStyle {
     var scale: CGFloat = 0.96
     func makeBody(configuration: Configuration) -> some View {

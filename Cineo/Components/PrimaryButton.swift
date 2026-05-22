@@ -27,11 +27,8 @@ struct PrimaryButton: View {
             .frame(maxWidth: .infinity, minHeight: Theme.Layout.buttonHeight)
             .padding(.horizontal, Theme.Spacing.md)
             .foregroundStyle(foreground)
-            .background(backgroundView)
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous)
-                    .strokeBorder(borderColor, lineWidth: borderWidth)
-            )
+            .background(backgroundLayer)
+            .overlay(borderOverlay)
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
             .shadow(color: glowColor, radius: glowRadius, x: 0, y: 8)
             .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
@@ -40,22 +37,36 @@ struct PrimaryButton: View {
     }
 
     @ViewBuilder
-    private var backgroundView: some View {
+    private var backgroundLayer: some View {
         switch kind {
         case .accent:
-            Theme.Colors.accentGradient
+            ZStack {
+                RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous)
+                    .fill(Theme.Colors.accentGradient)
+                RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous)
+                    .fill(Theme.Colors.accentSheen)
+                    .blendMode(.plusLighter)
+                    .allowsHitTesting(false)
+            }
         case .neutral:
-            Theme.Colors.surface
+            RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous)
+                .fill(Theme.Colors.surface)
         case .danger:
-            Theme.Colors.danger
+            RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous)
+                .fill(Theme.Colors.danger)
         case .ghost:
             Color.clear
         }
     }
 
+    private var borderOverlay: some View {
+        RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous)
+            .strokeBorder(borderColor, lineWidth: borderWidth)
+    }
+
     private var foreground: Color {
         switch kind {
-        case .accent: Color.black.opacity(0.92)
+        case .accent: Color(hex: 0x2A1A05)
         case .neutral: Theme.Colors.textPrimary
         case .danger: Theme.Colors.textPrimary
         case .ghost: Theme.Colors.textPrimary
@@ -63,7 +74,7 @@ struct PrimaryButton: View {
     }
     private var borderColor: Color {
         switch kind {
-        case .accent: .clear
+        case .accent: Color.white.opacity(0.22)
         case .neutral: Theme.Colors.border
         case .danger: .clear
         case .ghost: Theme.Colors.border
@@ -71,7 +82,8 @@ struct PrimaryButton: View {
     }
     private var borderWidth: CGFloat {
         switch kind {
-        case .accent, .danger: 0
+        case .accent: 0.6
+        case .danger: 0
         case .neutral, .ghost: 1
         }
     }
@@ -84,7 +96,7 @@ struct PrimaryButton: View {
     }
     private var glowRadius: CGFloat {
         switch kind {
-        case .accent, .danger: 18
+        case .accent, .danger: 22
         default: 0
         }
     }
@@ -98,13 +110,16 @@ struct CircleActionButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: size * 0.40, weight: .bold, design: .rounded))
-                .foregroundStyle(foreground)
-                .frame(width: size, height: size)
-                .background(backgroundShape)
-                .overlay(borderOverlay)
-                .shadow(color: glowColor, radius: glowRadius, x: 0, y: 8)
+            ZStack {
+                backgroundShape
+                sheenLayer
+                Image(systemName: symbol)
+                    .font(.system(size: size * 0.42, weight: .bold, design: .rounded))
+                    .foregroundStyle(foreground)
+            }
+            .frame(width: size, height: size)
+            .overlay(borderOverlay)
+            .shadow(color: glowColor, radius: glowRadius, x: 0, y: 10)
         }
         .buttonStyle(CineoPressStyle(scale: 0.92))
     }
@@ -117,13 +132,38 @@ struct CircleActionButton: View {
         case .neutral:
             Circle()
                 .fill(.ultraThinMaterial)
-                .background(Circle().fill(Theme.Colors.surface.opacity(0.6)))
+                .background(Circle().fill(Theme.Colors.surface.opacity(0.55)))
         case .danger:
             Circle().fill(Theme.Colors.danger.opacity(0.85))
         case .ghost:
-            // Translucent: just a faint glass disc, no fill.
             Circle()
-                .fill(.ultraThinMaterial.opacity(0.25))
+                .fill(.ultraThinMaterial.opacity(0.22))
+        }
+    }
+
+    /// Specular highlight at the top-left, only for fills that should look glossy.
+    @ViewBuilder
+    private var sheenLayer: some View {
+        switch kind {
+        case .accent:
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Color.white.opacity(0.55), Color.clear],
+                        center: .init(x: 0.3, y: 0.22),
+                        startRadius: 1,
+                        endRadius: size * 0.55
+                    )
+                )
+                .blendMode(.plusLighter)
+                .allowsHitTesting(false)
+        case .neutral:
+            Circle()
+                .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
+                .padding(2)
+                .allowsHitTesting(false)
+        default:
+            EmptyView()
         }
     }
 
@@ -133,7 +173,7 @@ struct CircleActionButton: View {
 
     private var foreground: Color {
         switch kind {
-        case .accent: Color.black.opacity(0.92)
+        case .accent: Color(hex: 0x2A1A05)
         case .neutral: Theme.Colors.textPrimary
         case .danger: Theme.Colors.textPrimary
         case .ghost: Theme.Colors.accentLight
@@ -141,14 +181,14 @@ struct CircleActionButton: View {
     }
     private var borderColor: Color {
         switch kind {
-        case .accent: Color.white.opacity(0.18)
+        case .accent: Color.white.opacity(0.28)
         case .neutral, .ghost: Theme.Colors.border
         case .danger: .clear
         }
     }
     private var borderWidth: CGFloat {
         switch kind {
-        case .accent: 0.5
+        case .accent: 0.6
         case .neutral, .ghost: 1
         case .danger: 0
         }
@@ -162,7 +202,7 @@ struct CircleActionButton: View {
     }
     private var glowRadius: CGFloat {
         switch kind {
-        case .accent: 22
+        case .accent: 26
         case .danger: 18
         default: 10
         }

@@ -19,9 +19,9 @@ struct DiscoverCardView: View {
                 .frame(width: cardWidth, height: posterHeight)
                 .clipped()
 
-                // Top edge vignette — Netflix-style darken at the top
+                // Top edge vignette
                 LinearGradient(
-                    colors: [Color.black.opacity(0.45), .clear],
+                    colors: [Color.black.opacity(0.5), .clear],
                     startPoint: .top,
                     endPoint: .center
                 )
@@ -29,32 +29,46 @@ struct DiscoverCardView: View {
                 .frame(maxHeight: .infinity, alignment: .top)
                 .allowsHitTesting(false)
 
+                // Glossy diagonal sheen — premium "lit" feel
+                LinearGradient(
+                    stops: [
+                        .init(color: Color.white.opacity(0.22), location: 0.0),
+                        .init(color: Color.white.opacity(0.05), location: 0.35),
+                        .init(color: Color.clear, location: 0.6)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .blendMode(.plusLighter)
+                .allowsHitTesting(false)
+
                 // Bottom scrim — strong enough that meta + overview stay legible
                 LinearGradient(
-                    colors: [
-                        Color.black.opacity(0),
-                        Color.black.opacity(0.6),
-                        Color.black.opacity(0.95)
+                    stops: [
+                        .init(color: .clear, location: 0.0),
+                        .init(color: Color.black.opacity(0.65), location: 0.6),
+                        .init(color: Color.black.opacity(0.96), location: 1.0)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(height: 280)
+                .frame(height: 300)
                 .frame(maxWidth: .infinity, alignment: .bottom)
                 .allowsHitTesting(false)
 
-                // Meta block sits over the poster bottom for a cinematic feel
+                // Meta block sits over the poster bottom
                 VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
                     if !candidate.genres.isEmpty {
                         Text(candidate.genres.prefix(3).joined(separator: "  ·  ").uppercased())
                             .font(Theme.Typography.caption)
-                            .tracking(1.4)
-                            .foregroundStyle(Theme.Colors.accent)
+                            .tracking(1.6)
+                            .foregroundStyle(Theme.Colors.accentLight)
+                            .shadow(color: Theme.Colors.accentGlow.opacity(0.4), radius: 6, y: 1)
                     }
                     Text(candidate.title)
                         .font(Theme.Typography.title)
                         .foregroundStyle(Theme.Colors.textPrimary)
-                        .shadow(color: .black.opacity(0.5), radius: 8, x: 0, y: 2)
+                        .shadow(color: .black.opacity(0.55), radius: 10, x: 0, y: 3)
                         .lineLimit(2)
                         .minimumScaleFactor(0.85)
                     metaRow
@@ -62,7 +76,7 @@ struct DiscoverCardView: View {
                     if !candidate.overview.isEmpty {
                         Text(candidate.overview)
                             .font(Theme.Typography.callout)
-                            .foregroundStyle(Theme.Colors.textPrimary.opacity(0.86))
+                            .foregroundStyle(Theme.Colors.textPrimary.opacity(0.88))
                             .lineLimit(3)
                             .padding(.top, 2)
                     }
@@ -76,23 +90,23 @@ struct DiscoverCardView: View {
         .background(Theme.Colors.surface)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.xl, style: .continuous))
         .overlay(
-            // Subtle gold rim — Apple-style hairline
+            // Brighter gold hairline rim that fades down
             RoundedRectangle(cornerRadius: Theme.Radius.xl, style: .continuous)
                 .stroke(
                     LinearGradient(
-                        colors: [
-                            Theme.Colors.accent.opacity(0.45),
-                            Theme.Colors.accent.opacity(0.08),
-                            .clear
+                        stops: [
+                            .init(color: Theme.Colors.accentLight.opacity(0.75), location: 0.0),
+                            .init(color: Theme.Colors.accent.opacity(0.35), location: 0.4),
+                            .init(color: .clear, location: 1.0)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
                     ),
-                    lineWidth: 0.7
+                    lineWidth: 0.9
                 )
         )
-        .shadow(color: Theme.Colors.shadow, radius: 40, x: 0, y: 26)
-        .shadow(color: Theme.Colors.accentGlow.opacity(0.15), radius: 60, x: 0, y: 0)
+        .shadow(color: Theme.Colors.shadow, radius: 44, x: 0, y: 28)
+        .shadow(color: Theme.Colors.accentGlow.opacity(0.22), radius: 70, x: 0, y: 0)
     }
 
     private var metaRow: some View {
@@ -119,10 +133,19 @@ struct DiscoverCardView: View {
     private func metaChip<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         content()
             .font(Theme.Typography.caption)
-            .foregroundStyle(Theme.Colors.textPrimary.opacity(0.92))
+            .foregroundStyle(Theme.Colors.textPrimary.opacity(0.94))
             .padding(.horizontal, Theme.Spacing.xs)
             .padding(.vertical, 5)
-            .background(.ultraThinMaterial.opacity(0.55), in: Capsule())
-            .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5))
+            .background(.ultraThinMaterial.opacity(0.6), in: Capsule())
+            .overlay(
+                Capsule().stroke(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.18), Color.white.opacity(0.04)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 0.5
+                )
+            )
     }
 }

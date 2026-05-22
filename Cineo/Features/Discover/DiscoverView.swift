@@ -76,23 +76,31 @@ struct DiscoverView: View {
                 } label: {
                     Text(option.label)
                         .font(Theme.Typography.footnote.weight(.semibold))
-                        .foregroundStyle(isActive ? Color.black.opacity(0.9) : Theme.Colors.textPrimary)
+                        .foregroundStyle(isActive ? Color(hex: 0x2A1A05) : Theme.Colors.textPrimary)
                         .padding(.horizontal, Theme.Spacing.sm)
                         .padding(.vertical, 7)
                         .background(
-                            Group {
+                            ZStack {
                                 if isActive {
                                     Capsule().fill(Theme.Colors.accentGradient)
+                                    Capsule()
+                                        .fill(Theme.Colors.accentSheen)
+                                        .blendMode(.plusLighter)
+                                        .allowsHitTesting(false)
                                 } else {
-                                    Capsule().fill(.ultraThinMaterial.opacity(0.35))
+                                    Capsule().fill(.ultraThinMaterial.opacity(0.4))
                                 }
                             }
                         )
                         .overlay(
-                            Capsule().strokeBorder(
-                                isActive ? Color.clear : Theme.Colors.border,
+                            Capsule().stroke(
+                                isActive ? Color.white.opacity(0.28) : Theme.Colors.border,
                                 lineWidth: 0.5
                             )
+                        )
+                        .shadow(
+                            color: isActive ? Theme.Colors.accentGlow.opacity(0.55) : .clear,
+                            radius: 10, y: 4
                         )
                 }
                 .buttonStyle(CineoPressStyle(scale: 0.94))
