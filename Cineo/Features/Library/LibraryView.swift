@@ -31,11 +31,11 @@ struct LibraryView: View {
                     }
                 }
                 if showLogoutConfirm {
-                    profilePanel
+                    logoutDropdown
                         .zIndex(99)
                 }
             }
-            .animation(Theme.Motion.spring, value: showLogoutConfirm)
+            .animation(Theme.Motion.pop, value: showLogoutConfirm)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: LibraryItem.self) { item in
                 LibraryDetailView(item: item)
@@ -179,92 +179,50 @@ struct LibraryView: View {
         .accessibilityLabel("Profil")
     }
 
-    // MARK: - Profile slide-in panel
+    // MARK: - Logout dropdown
 
-    private var profilePanel: some View {
-        ZStack(alignment: .trailing) {
-            // Backdrop — taps close the panel
-            Color.black.opacity(0.55)
-                .background(.ultraThinMaterial.opacity(0.4))
+    private var logoutDropdown: some View {
+        ZStack(alignment: .topTrailing) {
+            // Transparent tap-outside catcher
+            Color.clear
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture { showLogoutConfirm = false }
-                .transition(.opacity)
 
-            // Panel
-            VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-                // Header
-                HStack(spacing: Theme.Spacing.sm) {
-                    Image(systemName: "person.crop.circle.fill")
-                        .font(.system(size: 40, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.Colors.accentLight)
-                        .shadow(color: Theme.Colors.accentGlow.opacity(0.5), radius: 10, y: 3)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Konto")
-                            .font(Theme.Typography.title3)
-                            .foregroundStyle(Theme.Colors.textPrimary)
-                        Text("Mit Apple angemeldet")
-                            .font(Theme.Typography.caption)
-                            .foregroundStyle(Theme.Colors.textSecondary)
-                    }
+            Button {
+                showLogoutConfirm = false
+                // Let the dropdown finish scaling out before auth flips.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                    auth.signOut()
                 }
-                .padding(.top, Theme.Spacing.lg)
-
-                Rectangle()
-                    .fill(Theme.Colors.borderSubtle)
-                    .frame(height: 0.5)
-
-                Spacer(minLength: 0)
-
-                VStack(spacing: Theme.Spacing.sm) {
-                    PrimaryButton(
-                        title: "Abmelden",
-                        symbol: "rectangle.portrait.and.arrow.right",
-                        kind: .danger
-                    ) {
-                        showLogoutConfirm = false
-                        // Let the panel finish sliding out before the auth
-                        // state flips and unmounts this view.
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
-                            auth.signOut()
-                        }
-                    }
-                    PrimaryButton(
-                        title: "Abbrechen",
-                        symbol: nil,
-                        kind: .neutral
-                    ) {
-                        showLogoutConfirm = false
-                    }
+            } label: {
+                HStack(spacing: Theme.Spacing.xs) {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    Text("Abmelden")
+                        .font(Theme.Typography.callout.weight(.semibold))
                 }
-                .padding(.bottom, Theme.Spacing.xl)
-            }
-            .padding(.horizontal, Theme.Spacing.lg)
-            .frame(maxWidth: 320, maxHeight: .infinity, alignment: .leading)
-            .background(
-                ZStack {
-                    Theme.Colors.surfaceElevated
-                    Theme.Colors.backgroundGlow
-                        .opacity(0.5)
-                        .blendMode(.plusLighter)
-                }
-            )
-            .overlay(alignment: .leading) {
-                // A hairline gold edge along the left side
-                LinearGradient(
-                    stops: [
-                        .init(color: Theme.Colors.accentLight.opacity(0.55), location: 0.0),
-                        .init(color: Theme.Colors.accent.opacity(0.15), location: 0.5),
-                        .init(color: .clear, location: 1.0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
+                .foregroundStyle(Theme.Colors.textPrimary)
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial.opacity(0.9), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.16), Color.white.opacity(0.03)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 0.5
+                        )
                 )
-                .frame(width: 1)
+                .shadow(color: Color.black.opacity(0.45), radius: 16, y: 8)
             }
-            .shadow(color: Color.black.opacity(0.5), radius: 30, x: -10, y: 0)
-            .ignoresSafeArea(edges: .vertical)
-            .transition(.move(edge: .trailing))
+            .buttonStyle(CineoPressStyle(scale: 0.94))
+            .padding(.top, 56)
+            .padding(.trailing, Theme.Spacing.md)
+            .transition(.scale(scale: 0.85, anchor: .topTrailing).combined(with: .opacity))
         }
     }
 
