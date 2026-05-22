@@ -23,7 +23,7 @@ final class AuthService: NSObject {
 
     private var currentNonce: String?
     private var continuation: CheckedContinuation<Void, Error>?
-    private var authHandle: AuthStateDidChangeListenerHandle?
+    nonisolated(unsafe) private var authHandle: AuthStateDidChangeListenerHandle?
 
     override init() {
         super.init()

@@ -68,10 +68,11 @@ final class DiscoverViewModel {
         }
 
         let ordered = scores.sorted(by: { $0.value > $1.value })
-        let candidates: [Candidate] = ordered.compactMap { entry in
-            guard let rec = seen[entry.key], let mt = typeOf[entry.key] else { return nil }
-            let genres = client.resolveGenres(ids: rec.genreIds, mediaType: mt)
-            return Candidate(
+        var candidates: [Candidate] = []
+        for entry in ordered {
+            guard let rec = seen[entry.key], let mt = typeOf[entry.key] else { continue }
+            let genres = await client.resolveGenres(ids: rec.genreIds, mediaType: mt)
+            candidates.append(Candidate(
                 tmdbId: rec.id,
                 mediaType: mt,
                 title: rec.displayTitle,
@@ -80,7 +81,7 @@ final class DiscoverViewModel {
                 posterPath: rec.posterPath,
                 genres: genres,
                 voteAverage: rec.voteAverage ?? 0
-            )
+            ))
         }
 
         stack = candidates
@@ -89,12 +90,13 @@ final class DiscoverViewModel {
     private func loadTrendingFallback(libraryIds: Set<Int>, dismissedIds: Set<Int>) async {
         do {
             let trending = try await client.trending()
-            let candidates: [Candidate] = trending.compactMap { res in
-                guard let mt = res.resolvedMediaType else { return nil }
-                if libraryIds.contains(res.id) { return nil }
-                if dismissedIds.contains(res.id) { return nil }
-                let genres = client.resolveGenres(ids: res.genreIds, mediaType: mt)
-                return Candidate(
+            var candidates: [Candidate] = []
+            for res in trending {
+                guard let mt = res.resolvedMediaType else { continue }
+                if libraryIds.contains(res.id) { continue }
+                if dismissedIds.contains(res.id) { continue }
+                let genres = await client.resolveGenres(ids: res.genreIds, mediaType: mt)
+                candidates.append(Candidate(
                     tmdbId: res.id,
                     mediaType: mt,
                     title: res.displayTitle,
@@ -103,7 +105,7 @@ final class DiscoverViewModel {
                     posterPath: res.posterPath,
                     genres: genres,
                     voteAverage: res.voteAverage ?? 0
-                )
+                ))
             }
             stack = candidates
         } catch {

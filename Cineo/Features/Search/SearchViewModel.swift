@@ -24,8 +24,8 @@ final class SearchViewModel {
             error = nil
         } catch let err as TMDBError {
             error = err.localizedDescription
-        } catch {
-            error = error.localizedDescription
+        } catch let err {
+            error = err.localizedDescription
         }
     }
 }
