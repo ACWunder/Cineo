@@ -32,7 +32,15 @@ final class DiscoverViewModel {
         }
     }
 
-    private var allCandidates: [Candidate] = []
+    /// Authoritative pool — the full list of candidates from the latest reload.
+    private var allCandidates: [Candidate] = [] {
+        didSet { rebuildFilterCaches() }
+    }
+    /// Pre-filtered slices so switching the filter chip is just a pointer
+    /// assignment — no per-tap O(n) scan, no main-thread spike.
+    private var moviesCache: [Candidate] = []
+    private var tvCache: [Candidate] = []
+
     var stack: [Candidate] = []
     var filter: MediaFilter = .all { didSet { applyFilter() } }
     var isLoading: Bool = false
@@ -41,14 +49,16 @@ final class DiscoverViewModel {
 
     private let client = TMDBClient.shared
 
+    private func rebuildFilterCaches() {
+        moviesCache = allCandidates.filter { $0.mediaType == .movie }
+        tvCache = allCandidates.filter { $0.mediaType == .tv }
+    }
+
     private func applyFilter() {
         switch filter {
-        case .all:
-            stack = allCandidates
-        case .movie:
-            stack = allCandidates.filter { $0.mediaType == .movie }
-        case .tv:
-            stack = allCandidates.filter { $0.mediaType == .tv }
+        case .all:   stack = allCandidates
+        case .movie: stack = moviesCache
+        case .tv:    stack = tvCache
         }
     }
 
