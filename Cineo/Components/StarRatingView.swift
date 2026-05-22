@@ -16,18 +16,40 @@ struct StarRatingView: View {
     var spacing: CGFloat = Theme.Spacing.xs
     var isInteractive: Bool = true
 
-    private var totalWidth: CGFloat { 5 * size + 4 * spacing }
-
     var body: some View {
         HStack(spacing: spacing) {
             ForEach(1...5, id: \.self) { idx in
-                star(idx)
-                    .frame(width: size, height: size)
+                starCell(idx)
             }
         }
-        .frame(width: totalWidth, height: size)
-        .contentShape(Rectangle())
-        .gesture(isInteractive ? slideGesture : nil)
+    }
+
+    /// One visible star plus two invisible tap zones (left half / right half).
+    private func starCell(_ idx: Int) -> some View {
+        ZStack {
+            star(idx)
+                .frame(width: size, height: size)
+
+            HStack(spacing: 0) {
+                tapZone {
+                    set(Double(idx) - 0.5)
+                }
+                tapZone {
+                    set(Double(idx))
+                }
+            }
+            .frame(width: size, height: size)
+        }
+    }
+
+    private func tapZone(action: @escaping () -> Void) -> some View {
+        Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard isInteractive else { return }
+                action()
+            }
     }
 
     private func star(_ idx: Int) -> some View {
@@ -37,38 +59,11 @@ struct StarRatingView: View {
             .foregroundStyle(style.color)
     }
 
-    private var slideGesture: some Gesture {
-        DragGesture(minimumDistance: 0)
-            .onChanged { value in apply(value.location.x, dragged: true) }
-            .onEnded   { value in apply(value.location.x, dragged: false) }
-    }
-
-    /// Maps the horizontal touch coordinate to a 0.5-stepped rating.
-    /// During a drag we never toggle (clear) — only taps with no movement
-    /// can clear back to 0 by re-selecting the current value.
-    private func apply(_ x: CGFloat, dragged: Bool) {
-        let stride = size + spacing
-        let clamped = max(0, x)
-
-        for idx in 1...5 {
-            let starStart = CGFloat(idx - 1) * stride
-            let starMid = starStart + size / 2
-            let starEnd = starStart + size
-
-            if clamped <= starMid {
-                set(Double(idx) - 0.5, dragged: dragged); return
-            }
-            if clamped <= starEnd + spacing / 2 {
-                set(Double(idx), dragged: dragged); return
-            }
-        }
-        set(5, dragged: dragged)
-    }
-
-    private func set(_ value: Double, dragged: Bool) {
-        if !dragged && rating == value {
+    private func set(_ value: Double) {
+        // Re-tapping the current value clears the rating; otherwise just set.
+        if rating == value {
             rating = 0
-        } else if rating != value {
+        } else {
             rating = value
         }
     }
