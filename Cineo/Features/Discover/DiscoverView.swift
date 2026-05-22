@@ -135,13 +135,15 @@ struct DiscoverView: View {
     }
 
     private var stackView: some View {
-        // Card is pinned to the top so the gap to the top bar is whatever
-        // padding the top bar declares. The Spacer below pushes the action
-        // buttons to the bottom of the screen.
+        // Card is centered vertically between the top bar and the action
+        // buttons. Two spacers with the same minLength keep the card visually
+        // centered while still guaranteeing a minimum breathing room top &
+        // bottom.
         VStack(spacing: 0) {
+            Spacer(minLength: Theme.Spacing.sm)
             cardStack
                 .padding(.horizontal, Theme.Spacing.md)
-            Spacer(minLength: Theme.Spacing.md)
+            Spacer(minLength: Theme.Spacing.sm)
             if let top = viewModel.stack.first {
                 actionButtons(for: top)
                     .padding(.horizontal, Theme.Spacing.lg)

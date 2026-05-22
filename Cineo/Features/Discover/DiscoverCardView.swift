@@ -87,7 +87,7 @@ struct DiscoverCardView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .aspectRatio(0.62, contentMode: .fit)
+        .aspectRatio(Theme.Layout.posterAspect, contentMode: .fit)
         .background(Theme.Colors.surface)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.xl, style: .continuous))
         .overlay(
