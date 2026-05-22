@@ -238,9 +238,11 @@ struct DiscoverView: View {
 
     private func actionButtons(for candidate: DiscoverViewModel.Candidate) -> some View {
         HStack(spacing: Theme.Spacing.lg) {
-            // X — dismiss
+            // X — dismiss with a slow, deliberate fly-out so the tap feels
+            // intentional (a quick drag-swipe already feels good because the
+            // finger carries the card most of the way; a tap starts at 0).
             CircleActionButton(symbol: "xmark", kind: .neutral, size: Theme.Layout.circleActionLg) {
-                triggerSwipe(.left, for: candidate)
+                triggerSwipe(.left, for: candidate, duration: 0.85)
             }
             // Plus — smaller, transparent ghost — adds to watchlist
             CircleActionButton(symbol: "plus", kind: .ghost, size: Theme.Layout.circleActionSm) {
@@ -283,7 +285,9 @@ struct DiscoverView: View {
         var sign: CGFloat { self == .right ? 1 : -1 }
     }
 
-    private func triggerSwipe(_ direction: SwipeDirection, for candidate: DiscoverViewModel.Candidate) {
+    private func triggerSwipe(_ direction: SwipeDirection,
+                              for candidate: DiscoverViewModel.Candidate,
+                              duration: Double = 0.28) {
         hapticConfirm()
         if reduceMotion {
             flyingOut = true
@@ -291,11 +295,11 @@ struct DiscoverView: View {
                 finalizeSwipe(direction, candidate: candidate)
             }
         } else {
-            withAnimation(.easeOut(duration: 0.28)) {
+            withAnimation(.easeOut(duration: duration)) {
                 offset = CGSize(width: 900 * direction.sign, height: offset.height + 60)
                 flyingOut = true
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
                 finalizeSwipe(direction, candidate: candidate)
             }
         }
