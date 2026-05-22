@@ -55,13 +55,6 @@ final class DiscoverViewModel {
     func reload(library: [LibraryItem],
                 dismissedIds: Set<Int>,
                 preserveVisible: Int = 0) async {
-        // Snapshot whatever the user can currently see (top card + the cards
-        // peeking behind it) so the recomputation never re-shuffles anything
-        // already on screen.
-        let preservedHead: [Candidate] = preserveVisible > 0
-            ? Array(stack.prefix(preserveVisible))
-            : []
-
         isLoading = true
         defer { isLoading = false }
         error = nil
@@ -71,6 +64,16 @@ final class DiscoverViewModel {
 
         let ratedTitles = library.filter { $0.rating != nil && $0.rating != 0 }
         let libraryIds = Set(library.map { $0.tmdbId })
+
+        // Snapshot whatever the user can currently see, but drop anything
+        // that has since been added to library / watchlist / dismissed — so
+        // a card the user just added isn't kept in the preserved head.
+        let preservedHead: [Candidate] = {
+            guard preserveVisible > 0 else { return [] }
+            return Array(stack.prefix(preserveVisible)).filter { c in
+                !libraryIds.contains(c.tmdbId) && !dismissedIds.contains(c.tmdbId)
+            }
+        }()
 
         if ratedTitles.isEmpty {
             emptyLibrary = library.isEmpty
