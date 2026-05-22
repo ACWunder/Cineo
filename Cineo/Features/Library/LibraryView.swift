@@ -30,7 +30,12 @@ struct LibraryView: View {
                         libraryGrid
                     }
                 }
+                if showLogoutConfirm {
+                    profilePanel
+                        .zIndex(99)
+                }
             }
+            .animation(Theme.Motion.spring, value: showLogoutConfirm)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: LibraryItem.self) { item in
                 LibraryDetailView(item: item)
@@ -148,18 +153,6 @@ struct LibraryView: View {
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.top, Theme.Spacing.xs)
         .padding(.bottom, Theme.Spacing.sm)
-        .confirmationDialog(
-            "Abmelden?",
-            isPresented: $showLogoutConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("Abmelden", role: .destructive) {
-                auth.signOut()
-            }
-            Button("Abbrechen", role: .cancel) {}
-        } message: {
-            Text("Du wirst zur Anmeldung zurückgeführt.")
-        }
     }
 
     private var profileButton: some View {
@@ -184,6 +177,95 @@ struct LibraryView: View {
         }
         .buttonStyle(CineoPressStyle(scale: 0.92))
         .accessibilityLabel("Profil")
+    }
+
+    // MARK: - Profile slide-in panel
+
+    private var profilePanel: some View {
+        ZStack(alignment: .trailing) {
+            // Backdrop — taps close the panel
+            Color.black.opacity(0.55)
+                .background(.ultraThinMaterial.opacity(0.4))
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { showLogoutConfirm = false }
+                .transition(.opacity)
+
+            // Panel
+            VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
+                // Header
+                HStack(spacing: Theme.Spacing.sm) {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.system(size: 40, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Theme.Colors.accentLight)
+                        .shadow(color: Theme.Colors.accentGlow.opacity(0.5), radius: 10, y: 3)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Konto")
+                            .font(Theme.Typography.title3)
+                            .foregroundStyle(Theme.Colors.textPrimary)
+                        Text("Mit Apple angemeldet")
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                    }
+                }
+                .padding(.top, Theme.Spacing.lg)
+
+                Rectangle()
+                    .fill(Theme.Colors.borderSubtle)
+                    .frame(height: 0.5)
+
+                Spacer(minLength: 0)
+
+                VStack(spacing: Theme.Spacing.sm) {
+                    PrimaryButton(
+                        title: "Abmelden",
+                        symbol: "rectangle.portrait.and.arrow.right",
+                        kind: .danger
+                    ) {
+                        showLogoutConfirm = false
+                        // Let the panel finish sliding out before the auth
+                        // state flips and unmounts this view.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                            auth.signOut()
+                        }
+                    }
+                    PrimaryButton(
+                        title: "Abbrechen",
+                        symbol: nil,
+                        kind: .neutral
+                    ) {
+                        showLogoutConfirm = false
+                    }
+                }
+                .padding(.bottom, Theme.Spacing.xl)
+            }
+            .padding(.horizontal, Theme.Spacing.lg)
+            .frame(maxWidth: 320, maxHeight: .infinity, alignment: .leading)
+            .background(
+                ZStack {
+                    Theme.Colors.surfaceElevated
+                    Theme.Colors.backgroundGlow
+                        .opacity(0.5)
+                        .blendMode(.plusLighter)
+                }
+            )
+            .overlay(alignment: .leading) {
+                // A hairline gold edge along the left side
+                LinearGradient(
+                    stops: [
+                        .init(color: Theme.Colors.accentLight.opacity(0.55), location: 0.0),
+                        .init(color: Theme.Colors.accent.opacity(0.15), location: 0.5),
+                        .init(color: .clear, location: 1.0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(width: 1)
+            }
+            .shadow(color: Color.black.opacity(0.5), radius: 30, x: -10, y: 0)
+            .ignoresSafeArea(edges: .vertical)
+            .transition(.move(edge: .trailing))
+        }
     }
 
     @ViewBuilder
