@@ -3,12 +3,15 @@ import SwiftUI
 @main
 struct CineoApp: App {
 
-    @State private var auth = AuthService()
-    @State private var library = LibraryRepository()
-    @State private var dismissed = DismissedRepository()
+    @State private var auth: AuthService
+    @State private var library: LibraryRepository
+    @State private var dismissed: DismissedRepository
 
     init() {
         FirebaseBootstrap.configure()
+        _auth = State(initialValue: AuthService())
+        _library = State(initialValue: LibraryRepository())
+        _dismissed = State(initialValue: DismissedRepository())
     }
 
     var body: some Scene {
