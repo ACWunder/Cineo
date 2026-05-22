@@ -144,12 +144,19 @@ struct LibraryDetailView: View {
                     openTrailer(key: key)
                 } label: {
                     Image(systemName: "play.fill")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color(hex: 0x2A1A05))
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.Colors.accentLight)
                         .frame(width: 44, height: 44)
-                        .background(Theme.Colors.accentGradient, in: Circle())
-                        .overlay(Circle().stroke(Color.white.opacity(0.28), lineWidth: 0.6))
-                        .shadow(color: Theme.Colors.accentGlow, radius: 18, y: 6)
+                        .background(
+                            ZStack {
+                                Circle().fill(.ultraThinMaterial.opacity(0.55))
+                                Circle().fill(Theme.Colors.accent.opacity(0.18))
+                            }
+                        )
+                        .overlay(
+                            Circle().stroke(Theme.Colors.accent.opacity(0.5), lineWidth: 0.8)
+                        )
+                        .shadow(color: Theme.Colors.accentGlow.opacity(0.35), radius: 12, y: 4)
                 }
                 .buttonStyle(CineoPressStyle(scale: 0.9))
                 .padding(10)
