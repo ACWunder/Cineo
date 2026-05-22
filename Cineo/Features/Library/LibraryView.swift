@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LibraryView: View {
     @Environment(LibraryRepository.self) private var library
+    @Environment(AuthService.self) private var auth
     @State private var viewModel = LibraryViewModel()
 
     // Inline TMDB search
@@ -10,6 +11,8 @@ struct LibraryView: View {
     @State private var searchIsLoading: Bool = false
     @State private var searchError: String?
     @State private var pendingAdd: TMDBSearchMultiResult?
+
+    @State private var showLogoutConfirm: Bool = false
 
     @FocusState private var searchFocused: Bool
 
@@ -134,14 +137,53 @@ struct LibraryView: View {
     private var isSearching: Bool { !trimmedQuery.isEmpty }
 
     private var searchBar: some View {
-        CineoSearchField(
-            text: $searchQuery,
-            placeholder: "Film oder Serie hinzufügen …",
-            focus: $searchFocused
-        )
+        HStack(spacing: Theme.Spacing.xs) {
+            CineoSearchField(
+                text: $searchQuery,
+                placeholder: "Film oder Serie hinzufügen …",
+                focus: $searchFocused
+            )
+            profileButton
+        }
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.top, Theme.Spacing.xs)
         .padding(.bottom, Theme.Spacing.sm)
+        .confirmationDialog(
+            "Abmelden?",
+            isPresented: $showLogoutConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Abmelden", role: .destructive) {
+                auth.signOut()
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Du wirst zur Anmeldung zurückgeführt.")
+        }
+    }
+
+    private var profileButton: some View {
+        Button {
+            showLogoutConfirm = true
+        } label: {
+            Image(systemName: "person.crop.circle")
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .foregroundStyle(Theme.Colors.accentLight)
+                .frame(width: 34, height: 34)
+                .background(.ultraThinMaterial.opacity(0.5), in: Circle())
+                .overlay(
+                    Circle().stroke(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.14), Color.white.opacity(0.03)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.5
+                    )
+                )
+        }
+        .buttonStyle(CineoPressStyle(scale: 0.92))
+        .accessibilityLabel("Profil")
     }
 
     @ViewBuilder

@@ -26,7 +26,7 @@ struct CineoSearchField: View {
             }
         }
         .padding(.horizontal, Theme.Spacing.md)
-        .frame(height: 38)
+        .frame(height: 34)
         .background(.ultraThinMaterial.opacity(0.5), in: Capsule())
         .overlay(
             Capsule().stroke(
