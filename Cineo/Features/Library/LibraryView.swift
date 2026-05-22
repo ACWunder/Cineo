@@ -281,7 +281,7 @@ struct LibraryView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Theme.Spacing.xs) {
                 sortMenu
-                mediaTypePills
+                mediaTypeMenu
                 ratingMenu
                 genreMenu
             }
@@ -317,45 +317,24 @@ struct LibraryView: View {
         }
     }
 
-    private var mediaTypePills: some View {
+    private var mediaTypeMenu: some View {
         @Bindable var vm = viewModel
-        return HStack(spacing: 4) {
+        let isActive = vm.mediaType != .all
+        return Menu {
             ForEach(LibraryViewModel.MediaTypeFilter.allCases) { option in
-                let isActive = vm.mediaType == option
                 Button {
                     vm.mediaType = option
                 } label: {
-                    Text(option.rawValue)
-                        .font(Theme.Typography.footnote.weight(.semibold))
-                        .foregroundStyle(isActive ? Color(hex: 0x2A1A05) : Theme.Colors.textPrimary)
-                        .padding(.horizontal, Theme.Spacing.sm)
-                        .padding(.vertical, 7)
-                        .background(
-                            ZStack {
-                                if isActive {
-                                    Capsule().fill(Theme.Colors.accentGradient)
-                                    Capsule()
-                                        .fill(Theme.Colors.accentSheen)
-                                        .blendMode(.plusLighter)
-                                        .allowsHitTesting(false)
-                                } else {
-                                    Capsule().fill(.ultraThinMaterial.opacity(0.4))
-                                }
-                            }
-                        )
-                        .overlay(
-                            Capsule().stroke(
-                                isActive ? Color.white.opacity(0.28) : Theme.Colors.border,
-                                lineWidth: 0.5
-                            )
-                        )
-                        .shadow(
-                            color: isActive ? Theme.Colors.accentGlow.opacity(0.55) : .clear,
-                            radius: 10, y: 4
-                        )
+                    Label(option.rawValue,
+                          systemImage: vm.mediaType == option ? "checkmark" : "")
                 }
-                .buttonStyle(CineoPressStyle(scale: 0.94))
             }
+        } label: {
+            filterPillLabel(
+                icon: "film.stack",
+                text: vm.mediaType == .all ? "Typ" : vm.mediaType.rawValue,
+                isActive: isActive
+            )
         }
     }
 
@@ -407,6 +386,7 @@ struct LibraryView: View {
                 } label: {
                     Label(genre, systemImage: vm.selectedGenres.contains(genre) ? "checkmark" : "")
                 }
+                .menuActionDismissBehavior(.disabled)
             }
         } label: {
             let count = vm.selectedGenres.count
