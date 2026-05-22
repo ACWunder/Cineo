@@ -51,23 +51,22 @@ struct DiscoverView: View {
                 await reload()
             }
         }
+        .onChange(of: library.items.count) { _, _ in
+            // Library changed → recompute the pool, but keep whatever card
+            // the user is currently looking at stable.
+            guard didInitialLoad else { return }
+            Task { await reload(preserveTop: true) }
+        }
+        .onChange(of: dismissed.items.count) { _, _ in
+            guard didInitialLoad else { return }
+            Task { await reload(preserveTop: true) }
+        }
     }
 
     private var topBar: some View {
-        HStack(spacing: Theme.Spacing.xs) {
+        HStack {
             filterChips
-            Spacer()
-            Button {
-                Task { await reload() }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.Colors.accentLight)
-                    .frame(width: 40, height: 40)
-                    .background(.ultraThinMaterial.opacity(0.4), in: Circle())
-                    .overlay(Circle().strokeBorder(Theme.Colors.border, lineWidth: 0.5))
-            }
-            .buttonStyle(CineoPressStyle(scale: 0.92))
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.bottom, Theme.Spacing.sm)
@@ -310,7 +309,7 @@ struct DiscoverView: View {
             switch direction {
             case .left:
                 await dismissed.dismiss(tmdbId: candidate.tmdbId, mediaType: candidate.mediaType)
-                viewModel.popTop()
+                popAndMaybeRefill()
             case .right:
                 // Right swipe = "Gesehen" — open rating overlay without removing
                 // the card from the stack until the user finishes the overlay.
@@ -336,7 +335,7 @@ struct DiscoverView: View {
         withAnimation(reduceMotion ? Theme.Motion.reduced : Theme.Motion.spring) {
             ratingCandidate = nil
         }
-        viewModel.popTop()
+        popAndMaybeRefill()
         Task { await library.add(item) }
     }
 
@@ -353,7 +352,7 @@ struct DiscoverView: View {
             flyingOut = true
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
-            viewModel.popTop()
+            popAndMaybeRefill()
             offset = .zero
             flyingOut = false
         }
@@ -371,10 +370,23 @@ struct DiscoverView: View {
 
     // MARK: - Data
 
-    private func reload() async {
+    private func reload(preserveTop: Bool = false) async {
         let libraryItems = library.items
         let dismissedIds = Set(dismissed.items.map(\.tmdbId))
-        await viewModel.reload(library: libraryItems, dismissedIds: dismissedIds)
+        await viewModel.reload(
+            library: libraryItems,
+            dismissedIds: dismissedIds,
+            preserveTop: preserveTop
+        )
+    }
+
+    /// Wrap viewModel.popTop with an auto-refill when the deck thins out.
+    /// Called from every place that previously called popTop directly.
+    private func popAndMaybeRefill() {
+        viewModel.popTop()
+        if viewModel.stack.count <= 2 && !viewModel.isLoading {
+            Task { await reload(preserveTop: true) }
+        }
     }
 }
 

@@ -52,7 +52,13 @@ final class DiscoverViewModel {
         }
     }
 
-    func reload(library: [LibraryItem], dismissedIds: Set<Int>) async {
+    func reload(library: [LibraryItem],
+                dismissedIds: Set<Int>,
+                preserveTop: Bool = false) async {
+        // Snapshot the currently visible top card so an in-flight rating /
+        // add / library mutation doesn't whip it out from under the user.
+        let preservedTop: Candidate? = preserveTop ? stack.first : nil
+
         isLoading = true
         defer { isLoading = false }
         error = nil
@@ -65,7 +71,7 @@ final class DiscoverViewModel {
 
         if ratedTitles.isEmpty {
             emptyLibrary = library.isEmpty
-            await loadTrendingFallback(libraryIds: libraryIds, dismissedIds: dismissedIds)
+            await loadTrendingFallback(libraryIds: libraryIds, dismissedIds: dismissedIds, preservedTop: preservedTop)
             return
         }
 
@@ -112,11 +118,13 @@ final class DiscoverViewModel {
             ))
         }
 
-        allCandidates = candidates
+        allCandidates = mergePreserved(preservedTop, into: candidates)
         applyFilter()
     }
 
-    private func loadTrendingFallback(libraryIds: Set<Int>, dismissedIds: Set<Int>) async {
+    private func loadTrendingFallback(libraryIds: Set<Int>,
+                                      dismissedIds: Set<Int>,
+                                      preservedTop: Candidate? = nil) async {
         do {
             let trending = try await client.trending()
             var candidates: [Candidate] = []
@@ -136,11 +144,20 @@ final class DiscoverViewModel {
                     voteAverage: res.voteAverage ?? 0
                 ))
             }
-            allCandidates = candidates
+            allCandidates = mergePreserved(preservedTop, into: candidates)
             applyFilter()
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    /// Keeps a previously-visible top card at the front of the new candidate
+    /// pool so the recomputation doesn't whip the user's current view away.
+    private func mergePreserved(_ preserved: Candidate?, into pool: [Candidate]) -> [Candidate] {
+        guard let preserved else { return pool }
+        var filtered = pool.filter { $0.id != preserved.id }
+        filtered.insert(preserved, at: 0)
+        return filtered
     }
 
     func popTop() {
