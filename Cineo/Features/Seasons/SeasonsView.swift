@@ -8,10 +8,7 @@ struct SeasonsView: View {
         NavigationStack {
             ZStack {
                 Theme.Colors.background.ignoresSafeArea()
-                VStack(spacing: 0) {
-                    topBar
-                    content
-                }
+                content
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: LibraryItem.self) { item in
@@ -21,25 +18,6 @@ struct SeasonsView: View {
         .task(id: library.items.map(\.tmdbId)) {
             await viewModel.reload(library: library.items)
         }
-    }
-
-    private var topBar: some View {
-        HStack {
-            Spacer()
-            Button {
-                Task { await viewModel.reload(library: library.items) }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.Colors.accentLight)
-                    .frame(width: 40, height: 40)
-                    .background(.ultraThinMaterial.opacity(0.4), in: Circle())
-                    .overlay(Circle().strokeBorder(Theme.Colors.border, lineWidth: 0.5))
-            }
-            .buttonStyle(CineoPressStyle(scale: 0.92))
-        }
-        .padding(.horizontal, Theme.Spacing.md)
-        .padding(.bottom, Theme.Spacing.xs)
     }
 
     @ViewBuilder
