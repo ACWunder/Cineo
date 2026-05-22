@@ -4,7 +4,7 @@ struct MainTabView: View {
     var body: some View {
         TabView {
             DiscoverView()
-                .tabItem { Label("Empfehlungen", systemImage: "sparkles") }
+                .tabItem { Label("Entdecken", systemImage: "sparkles") }
 
             WatchlistView()
                 .tabItem { Label("Watchlist", systemImage: "bookmark.fill") }
