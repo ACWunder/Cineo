@@ -383,9 +383,10 @@ struct DiscoverView: View {
         offset = .zero
         flyingOut = false
 
-        // Pop the model immediately, with a spring on the depth/scale
-        // transitions so the next card glides forward smoothly.
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+        // Pop the model immediately. The depth/scale transitions of the
+        // cards behind ride a soft slower spring so the next card glides
+        // smoothly forward instead of snapping.
+        withAnimation(.spring(response: 0.62, dampingFraction: 0.92)) {
             switch direction {
             case .left:
                 Task { await dismissed.dismiss(tmdbId: candidate.tmdbId, mediaType: candidate.mediaType) }
