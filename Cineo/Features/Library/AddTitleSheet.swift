@@ -8,7 +8,7 @@ struct AddTitleSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var step: Step = .choose
-    @State private var rating: Int = 0
+    @State private var rating: Double = 0
     @State private var isWorking: Bool = false
     @State private var errorMessage: String?
 
@@ -88,7 +88,7 @@ struct AddTitleSheet: View {
         }
     }
 
-    private func save(asWatched: Bool, rating: Int?) async {
+    private func save(asWatched: Bool, rating: Double?) async {
         guard let mt = result.resolvedMediaType else { return }
         isWorking = true
         defer { isWorking = false }

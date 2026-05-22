@@ -45,7 +45,7 @@ final class LibraryViewModel {
         }
 
         if minRating > 0 {
-            filtered = filtered.filter { ($0.rating ?? 0) >= minRating }
+            filtered = filtered.filter { ($0.rating ?? 0) >= Double(minRating) }
         }
 
         if !selectedGenres.isEmpty {
@@ -58,7 +58,7 @@ final class LibraryViewModel {
         case .addedAt:
             return filtered.sorted(by: { $0.addedAt > $1.addedAt })
         case .rating:
-            return filtered.sorted(by: { ($0.rating ?? 0) > ($1.rating ?? 0) })
+            return filtered.sorted(by: { ($0.rating ?? 0.0) > ($1.rating ?? 0.0) })
         case .title:
             return filtered.sorted(by: { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending })
         }

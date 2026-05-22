@@ -330,7 +330,7 @@ struct DiscoverView: View {
         ratingCandidate = candidate
     }
 
-    private func commitRating(_ value: Int?, for candidate: DiscoverViewModel.Candidate) {
+    private func commitRating(_ value: Double?, for candidate: DiscoverViewModel.Candidate) {
         let item = viewModel.toLibraryItem(candidate, rating: value, watched: true)
         // Optimistic UI: dismiss the overlay and advance the stack right away.
         // The Firestore write runs in the background — first-time save latency

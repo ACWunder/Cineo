@@ -55,7 +55,7 @@ final class LibraryRepository {
 
     /// Only updates the rating. Leaves `watched` untouched (used by the
     /// LibraryDetailView slider, where the item is already watched).
-    func updateRating(tmdbId: Int, rating: Int?) async {
+    func updateRating(tmdbId: Int, rating: Double?) async {
         guard let uid else { return }
         let ref = db.collection("users").document(uid).collection("library").document(String(tmdbId))
         var data: [String: Any] = [:]
@@ -69,7 +69,7 @@ final class LibraryRepository {
 
     /// Promotes a watchlist item into the library: sets `watched = true` and
     /// applies the rating (or removes it on skip). Atomic update.
-    func markWatched(tmdbId: Int, rating: Int?) async {
+    func markWatched(tmdbId: Int, rating: Double?) async {
         guard let uid else { return }
         let ref = db.collection("users").document(uid).collection("library").document(String(tmdbId))
         var data: [String: Any] = ["watched": true]
@@ -135,7 +135,13 @@ final class LibraryRepository {
         let year = data["year"] as? String ?? ""
         let posterPath = data["posterPath"] as? String
         let genres = data["genres"] as? [String] ?? []
-        let rating = data["rating"] as? Int
+        // Rating is now a Double (0.5 steps). Old documents stored Int — accept both.
+        let rating: Double? = {
+            if let d = data["rating"] as? Double { return d }
+            if let i = data["rating"] as? Int { return Double(i) }
+            if let n = data["rating"] as? NSNumber { return n.doubleValue }
+            return nil
+        }()
         let watched = data["watched"] as? Bool ?? false
         let addedAt = (data["addedAt"] as? Timestamp)?.dateValue() ?? Date()
 

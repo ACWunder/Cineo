@@ -8,13 +8,13 @@ nonisolated struct LibraryItem: Codable, Identifiable, Hashable, Sendable {
     let year: String
     let posterPath: String?
     let genres: [String]
-    var rating: Int?
+    var rating: Double?     // 0.5 ... 5.0 in 0.5 steps
     var watched: Bool
     let addedAt: Date
 
     var id: Int { tmdbId }
 
-    var ratingValue: Int { rating ?? 0 }
+    var ratingValue: Double { rating ?? 0 }
 
     var hasRating: Bool { rating != nil }
 }

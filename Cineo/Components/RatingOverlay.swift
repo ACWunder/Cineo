@@ -7,11 +7,11 @@ struct RatingOverlay: View {
 
     let title: String
     let posterPath: String?
-    var onRate: (Int) -> Void        // 1...5
+    var onRate: (Double) -> Void     // 0.5 ... 5.0
     var onSkip: () -> Void           // mark watched without rating
     var onCancel: () -> Void         // backdrop tap: close without action
 
-    @State private var hoverRating: Int = 0
+    @State private var hoverRating: Double = 0
     @State private var isCommitting: Bool = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -72,39 +72,28 @@ struct RatingOverlay: View {
     }
 
     private var stars: some View {
-        HStack(spacing: Theme.Spacing.sm) {
-            ForEach(1...5, id: \.self) { value in
-                Button {
-                    tap(value)
-                } label: {
-                    Image(systemName: value <= hoverRating ? "star.fill" : "star")
-                        .font(.system(size: 46, weight: .semibold, design: .rounded))
-                        .foregroundStyle(value <= hoverRating ? Theme.Colors.accentLight : Theme.Colors.starEmpty)
-                        .frame(width: 56, height: 56)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(CineoPressStyle(scale: 0.88))
-                .disabled(isCommitting)
-                .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity, pressing: { pressing in
-                    if pressing && !isCommitting { hoverRating = value }
-                }, perform: {})
-            }
+        StarRatingView(
+            rating: $hoverRating,
+            size: 42,
+            spacing: Theme.Spacing.sm,
+            isInteractive: !isCommitting
+        )
+        .onChange(of: hoverRating) { oldValue, newValue in
+            guard !isCommitting else { return }
+            guard newValue > 0 else { return }
+            guard newValue != oldValue else { return }
+            commit(newValue)
         }
     }
 
     /// Light the stars up, fade the overlay out, then call onRate. Keeps the
-    /// dismissal feeling unhurried even though the actual save fires async
-    /// (so the first-tap latency you'd otherwise see is gone).
-    private func tap(_ value: Int) {
-        guard !isCommitting else { return }
+    /// dismissal feeling unhurried even though the actual save fires async.
+    private func commit(_ value: Double) {
         HapticEngine.shared.confirm()
-        withAnimation(.easeOut(duration: 0.18)) {
-            hoverRating = value
-        }
-        withAnimation(.easeOut(duration: 0.28).delay(0.12)) {
+        withAnimation(.easeOut(duration: 0.28).delay(0.14)) {
             isCommitting = true
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.36) {
             onRate(value)
         }
     }

@@ -9,7 +9,7 @@ struct LibraryDetailView: View {
     @Environment(LibraryRepository.self) private var library
     @Environment(\.dismiss) private var dismiss
 
-    @State private var rating: Int = 0
+    @State private var rating: Double = 0
     @State private var showDeleteConfirm: Bool = false
     @State private var showRatingOverlay: Bool = false
     @State private var extras: DetailExtras?
@@ -388,7 +388,7 @@ struct LibraryDetailView: View {
     /// Both the discover-rating and the watchlist-promote-to-library paths
     /// land here. The first writes a fresh LibraryItem with watched=true,
     /// the second flips the existing item to watched and applies the rating.
-    private func commitRating(_ value: Int?) {
+    private func commitRating(_ value: Double?) {
         withAnimation(.easeOut(duration: 0.25)) {
             showRatingOverlay = false
         }

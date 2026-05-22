@@ -117,7 +117,7 @@ struct WatchlistView: View {
 
     // MARK: - Mark watched
 
-    private func commit(_ rating: Int?, for item: LibraryItem) {
+    private func commit(_ rating: Double?, for item: LibraryItem) {
         // Optimistic UI: close the overlay first, save in the background.
         withAnimation(.easeOut(duration: 0.25)) {
             rateTarget = nil

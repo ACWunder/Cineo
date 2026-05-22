@@ -172,7 +172,7 @@ final class DiscoverViewModel {
         allCandidates.removeAll(where: { $0.id == removed.id })
     }
 
-    func toLibraryItem(_ c: Candidate, rating: Int?, watched: Bool) -> LibraryItem {
+    func toLibraryItem(_ c: Candidate, rating: Double?, watched: Bool) -> LibraryItem {
         LibraryItem(
             tmdbId: c.tmdbId,
             mediaType: c.mediaType,
