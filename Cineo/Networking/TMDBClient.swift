@@ -94,6 +94,126 @@ actor TMDBClient {
         return res.results.filter { $0.resolvedMediaType != nil }
     }
 
+    // MARK: - Detail extras (cast / videos / providers / backdrop / runtime)
+
+    /// Loads everything the detail view needs in three parallel calls:
+    /// the base details (for backdrop + tagline + runtime), credits, videos
+    /// and watch providers. Falls back to neutral defaults on any partial
+    /// failure so the screen never refuses to render.
+    func extras(for id: Int, mediaType: MediaType, region: String = "DE") async -> DetailExtras {
+        switch mediaType {
+        case .movie:
+            return await loadMovieExtras(id: id, region: region)
+        case .tv:
+            return await loadTVExtras(id: id, region: region)
+        }
+    }
+
+    private func loadMovieExtras(id: Int, region: String) async -> DetailExtras {
+        async let details = try? await movieDetails(id)
+        async let credits: TMDBCreditsResponse? = try? await get(
+            path: "/movie/\(id)/credits",
+            query: ["language": "de-DE"]
+        )
+        async let videos: TMDBVideosResponse? = try? await get(
+            path: "/movie/\(id)/videos",
+            query: ["language": "en-US"]
+        )
+        async let providers: TMDBWatchProvidersResponse? = try? await get(
+            path: "/movie/\(id)/watch/providers",
+            query: [:]
+        )
+
+        let d = await details
+        let c = await credits
+        let v = await videos
+        let p = await providers
+
+        return DetailExtras(
+            backdropPath: d?.backdropPath,
+            tagline: d?.tagline,
+            runtimeMinutes: d?.runtime,
+            cast: Self.mapCast(c?.cast),
+            trailerYouTubeKey: Self.pickTrailerKey(v?.results),
+            providers: Self.mapProviders(p?.results[region])
+        )
+    }
+
+    private func loadTVExtras(id: Int, region: String) async -> DetailExtras {
+        async let details = try? await tvDetails(id)
+        async let credits: TMDBCreditsResponse? = try? await get(
+            path: "/tv/\(id)/credits",
+            query: ["language": "de-DE"]
+        )
+        async let videos: TMDBVideosResponse? = try? await get(
+            path: "/tv/\(id)/videos",
+            query: ["language": "en-US"]
+        )
+        async let providers: TMDBWatchProvidersResponse? = try? await get(
+            path: "/tv/\(id)/watch/providers",
+            query: [:]
+        )
+
+        let d = await details
+        let c = await credits
+        let v = await videos
+        let p = await providers
+
+        // TV runtime is `episode_run_time: [Int]`. Take the first.
+        let runtime = d?.episodeRunTime?.first
+
+        return DetailExtras(
+            backdropPath: d?.backdropPath,
+            tagline: d?.tagline,
+            runtimeMinutes: runtime,
+            cast: Self.mapCast(c?.cast),
+            trailerYouTubeKey: Self.pickTrailerKey(v?.results),
+            providers: Self.mapProviders(p?.results[region])
+        )
+    }
+
+    private nonisolated static func mapCast(_ cast: [TMDBCastMember]?) -> [DetailExtras.CastMember] {
+        guard let cast else { return [] }
+        return cast
+            .sorted(by: { ($0.order ?? Int.max) < ($1.order ?? Int.max) })
+            .prefix(6)
+            .map {
+                DetailExtras.CastMember(
+                    id: $0.id,
+                    name: $0.name,
+                    character: $0.character,
+                    profilePath: $0.profilePath
+                )
+            }
+    }
+
+    /// Prefers official YouTube trailers; falls back to any YouTube trailer.
+    private nonisolated static func pickTrailerKey(_ videos: [TMDBVideo]?) -> String? {
+        guard let videos else { return nil }
+        let youtubeTrailers = videos.filter { $0.site == "YouTube" && $0.type == "Trailer" }
+        if let official = youtubeTrailers.first(where: { $0.official == true }) {
+            return official.key
+        }
+        return youtubeTrailers.first?.key
+    }
+
+    private nonisolated static func mapProviders(_ region: TMDBProviderRegion?) -> [DetailExtras.Provider] {
+        guard let region else { return [] }
+        // Prefer flatrate (subscription) — that's the most relevant for "where
+        // can I stream this?". Falls back to free, then ads, then rent / buy.
+        let pool = region.flatrate ?? region.free ?? region.ads ?? region.rent ?? region.buy ?? []
+        return pool
+            .sorted(by: { ($0.displayPriority ?? Int.max) < ($1.displayPriority ?? Int.max) })
+            .prefix(6)
+            .map {
+                DetailExtras.Provider(
+                    id: $0.providerId,
+                    name: $0.providerName,
+                    logoPath: $0.logoPath
+                )
+            }
+    }
+
     // MARK: - Generic GET
 
     private func get<T: Decodable>(path: String, query: [String: String] = [:]) async throws -> T {

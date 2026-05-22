@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct LibraryDetailView: View {
     let item: LibraryItem
@@ -9,6 +12,7 @@ struct LibraryDetailView: View {
     @State private var rating: Int = 0
     @State private var showDeleteConfirm: Bool = false
     @State private var showRatingOverlay: Bool = false
+    @State private var extras: DetailExtras?
 
     private var isInLibrary: Bool { library.contains(tmdbId: item.tmdbId) }
 
@@ -37,8 +41,10 @@ struct LibraryDetailView: View {
                     cover
                     titleBlock
                     if !item.genres.isEmpty { genrePills }
+                    providersRow
                     if isInLibrary { ratingRow }
                     if !item.overview.isEmpty { description }
+                    castRow
                     actions
                 }
                 .padding(.horizontal, Theme.Spacing.xl)
@@ -61,6 +67,9 @@ struct LibraryDetailView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .onAppear { rating = item.rating ?? 0 }
+        .task(id: item.tmdbId) {
+            extras = await TMDBClient.shared.extras(for: item.tmdbId, mediaType: item.mediaType)
+        }
         .alert(removeAlertTitle, isPresented: $showDeleteConfirm) {
             Button("Entfernen", role: .destructive) {
                 Task {
@@ -86,7 +95,22 @@ struct LibraryDetailView: View {
     private var backdrop: some View {
         ZStack {
             Theme.Colors.background
-            if TMDB.posterURL(item.posterPath, size: "w780") != nil {
+
+            // Prefer the wide backdrop (cinematic), fall back to a blurred
+            // poster when TMDB has none.
+            if let backdropURL = TMDB.backdropURL(extras?.backdropPath, size: "w1280") {
+                AsyncImage(url: backdropURL, transaction: Transaction(animation: .easeOut(duration: 0.35))) { phase in
+                    if case .success(let image) = phase {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .blur(radius: 30)
+                .opacity(0.55)
+                .ignoresSafeArea()
+            } else if TMDB.posterURL(item.posterPath, size: "w780") != nil {
                 PosterView(path: item.posterPath, size: "w780", radius: 0, shadow: false)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .scaledToFill()
@@ -110,11 +134,37 @@ struct LibraryDetailView: View {
     // MARK: - Cover + title
 
     private var cover: some View {
-        PosterView(path: item.posterPath, size: "w780", radius: Theme.Radius.lg)
-            .frame(maxWidth: 220)
-            .shadow(color: Theme.Colors.shadow, radius: 38, y: 22)
-            .shadow(color: Theme.Colors.accentGlow.opacity(0.25), radius: 70, y: 0)
-            .padding(.top, Theme.Spacing.xs)
+        ZStack(alignment: .bottomTrailing) {
+            PosterView(path: item.posterPath, size: "w780", radius: Theme.Radius.lg)
+                .frame(maxWidth: 220)
+                .shadow(color: Theme.Colors.shadow, radius: 38, y: 22)
+                .shadow(color: Theme.Colors.accentGlow.opacity(0.25), radius: 70, y: 0)
+
+            if let key = extras?.trailerYouTubeKey {
+                Button {
+                    openTrailer(key: key)
+                } label: {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color(hex: 0x2A1A05))
+                        .frame(width: 44, height: 44)
+                        .background(Theme.Colors.accentGradient, in: Circle())
+                        .overlay(Circle().stroke(Color.white.opacity(0.28), lineWidth: 0.6))
+                        .shadow(color: Theme.Colors.accentGlow, radius: 18, y: 6)
+                }
+                .buttonStyle(CineoPressStyle(scale: 0.9))
+                .padding(10)
+                .accessibilityLabel("Trailer abspielen")
+            }
+        }
+        .padding(.top, Theme.Spacing.xs)
+    }
+
+    private func openTrailer(key: String) {
+        guard let url = URL(string: "https://www.youtube.com/watch?v=\(key)") else { return }
+#if canImport(UIKit)
+        UIApplication.shared.open(url)
+#endif
     }
 
     private var titleBlock: some View {
@@ -126,6 +176,14 @@ struct LibraryDetailView: View {
                 .shadow(color: .black.opacity(0.55), radius: 10, y: 3)
                 .minimumScaleFactor(0.85)
 
+            if let tagline = extras?.tagline, !tagline.isEmpty {
+                Text(tagline)
+                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                    .italic()
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+
             HStack(spacing: 6) {
                 Image(systemName: item.mediaType.symbol)
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
@@ -133,6 +191,10 @@ struct LibraryDetailView: View {
                 if !item.year.isEmpty {
                     Text("·").foregroundStyle(Theme.Colors.textTertiary)
                     Text(item.year)
+                }
+                if let runtime = extras?.runtimeMinutes, runtime > 0 {
+                    Text("·").foregroundStyle(Theme.Colors.textTertiary)
+                    Text("\(runtime) min")
                 }
             }
             .font(Theme.Typography.footnote)
@@ -158,6 +220,47 @@ struct LibraryDetailView: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Providers
+
+    @ViewBuilder
+    private var providersRow: some View {
+        if let providers = extras?.providers, !providers.isEmpty {
+            HStack(spacing: 8) {
+                ForEach(providers) { provider in
+                    ProviderIcon(provider: provider)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    // MARK: - Cast
+
+    @ViewBuilder
+    private var castRow: some View {
+        if let cast = extras?.cast, !cast.isEmpty {
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                Text("Besetzung")
+                    .font(Theme.Typography.caption)
+                    .tracking(1.2)
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .padding(.horizontal, Theme.Spacing.xs)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+                        ForEach(cast) { member in
+                            CastChip(member: member)
+                        }
+                    }
+                    .padding(.horizontal, Theme.Spacing.xs)
+                }
+                .scrollClipDisabled()
+                .padding(.horizontal, -Theme.Spacing.xs)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     // MARK: - Rating
@@ -436,5 +539,84 @@ struct FlowLayout: Layout {
             x += size.width + spacing
             rowH = max(rowH, size.height)
         }
+    }
+}
+
+// MARK: - Provider icon
+
+private struct ProviderIcon: View {
+    let provider: DetailExtras.Provider
+
+    var body: some View {
+        AsyncImage(url: TMDB.providerLogoURL(provider.logoPath, size: "w92")) { phase in
+            switch phase {
+            case .success(let image):
+                image
+                    .resizable()
+                    .scaledToFill()
+            default:
+                placeholder
+            }
+        }
+        .frame(width: 38, height: 38)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.4), radius: 6, y: 3)
+        .accessibilityLabel(provider.name)
+    }
+
+    private var placeholder: some View {
+        Theme.Colors.surfaceElevated
+            .overlay(
+                Text(provider.name.prefix(1).uppercased())
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.Colors.textSecondary)
+            )
+    }
+}
+
+// MARK: - Cast chip
+
+private struct CastChip: View {
+    let member: DetailExtras.CastMember
+
+    var body: some View {
+        VStack(spacing: 6) {
+            AsyncImage(url: TMDB.profileURL(member.profilePath, size: "w185")) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                default:
+                    Theme.Colors.surfaceElevated.overlay(
+                        Image(systemName: "person.fill")
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                    )
+                }
+            }
+            .frame(width: 68, height: 68)
+            .clipShape(Circle())
+            .overlay(
+                Circle().stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
+
+            Text(member.name)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(Theme.Colors.textPrimary)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+            if let character = member.character, !character.isEmpty {
+                Text(character)
+                    .font(.system(size: 10, weight: .regular, design: .rounded))
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(width: 88)
     }
 }
