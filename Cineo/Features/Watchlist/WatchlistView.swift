@@ -167,45 +167,68 @@ struct WatchlistView: View {
     }
 
     private var mediaFilterChips: some View {
-        HStack(spacing: 6) {
+        HStack {
+            mediaTypeMenu
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var mediaTypeMenu: some View {
+        let isActive = mediaFilter != .all
+        return Menu {
             ForEach(MediaFilter.allCases) { option in
-                let isActive = mediaFilter == option
                 Button {
                     mediaFilter = option
                 } label: {
-                    Text(option.rawValue)
-                        .font(Theme.Typography.footnote.weight(.semibold))
-                        .foregroundStyle(isActive ? Color(hex: 0x2A1A05) : Theme.Colors.textPrimary)
-                        .padding(.horizontal, Theme.Spacing.sm)
-                        .padding(.vertical, 7)
-                        .background(
-                            ZStack {
-                                if isActive {
-                                    Capsule().fill(Theme.Colors.accentGradient)
-                                    Capsule()
-                                        .fill(Theme.Colors.accentSheen)
-                                        .blendMode(.plusLighter)
-                                        .allowsHitTesting(false)
-                                } else {
-                                    Capsule().fill(.ultraThinMaterial.opacity(0.4))
-                                }
-                            }
-                        )
-                        .overlay(
-                            Capsule().stroke(
-                                isActive ? Color.white.opacity(0.28) : Theme.Colors.border,
-                                lineWidth: 0.5
-                            )
-                        )
-                        .shadow(
-                            color: isActive ? Theme.Colors.accentGlow.opacity(0.55) : .clear,
-                            radius: 10, y: 4
-                        )
+                    Label(option.rawValue,
+                          systemImage: mediaFilter == option ? "checkmark" : "")
                 }
-                .buttonStyle(CineoPressStyle(scale: 0.94))
             }
-            Spacer(minLength: 0)
+        } label: {
+            filterPillLabel(
+                icon: "film.stack",
+                text: mediaFilter == .all ? "Typ" : mediaFilter.rawValue,
+                isActive: isActive
+            )
         }
+    }
+
+    private func filterPillLabel(icon: String, text: String, isActive: Bool) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+            Text(text)
+                .font(Theme.Typography.footnote.weight(.semibold))
+            Image(systemName: "chevron.down")
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .opacity(0.7)
+        }
+        .foregroundStyle(isActive ? Color(hex: 0x2A1A05) : Theme.Colors.textPrimary)
+        .padding(.horizontal, Theme.Spacing.sm)
+        .padding(.vertical, 7)
+        .background(
+            ZStack {
+                if isActive {
+                    Capsule().fill(Theme.Colors.accentGradient)
+                    Capsule()
+                        .fill(Theme.Colors.accentSheen)
+                        .blendMode(.plusLighter)
+                        .allowsHitTesting(false)
+                } else {
+                    Capsule().fill(.ultraThinMaterial.opacity(0.4))
+                }
+            }
+        )
+        .overlay(
+            Capsule().stroke(
+                isActive ? Color.white.opacity(0.28) : Theme.Colors.border,
+                lineWidth: 0.5
+            )
+        )
+        .shadow(
+            color: isActive ? Theme.Colors.accentGlow.opacity(0.55) : .clear,
+            radius: 10, y: 4
+        )
     }
 
     private func performSearch() async {

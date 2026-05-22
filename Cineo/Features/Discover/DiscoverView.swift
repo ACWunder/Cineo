@@ -66,55 +66,72 @@ struct DiscoverView: View {
 
     private var topBar: some View {
         HStack {
-            filterChips
+            mediaTypeMenu
             Spacer(minLength: 0)
         }
-        .frame(height: 40)   // matches the previous reload-button height so the
-                             // filter chips sit at the same vertical position
+        .frame(height: 40)
         .padding(.horizontal, Theme.Spacing.md)
+        .padding(.top, Theme.Spacing.xs)
         .padding(.bottom, Theme.Spacing.sm)
     }
 
-    private var filterChips: some View {
+    private var mediaTypeMenu: some View {
         @Bindable var vm = viewModel
-        return HStack(spacing: 6) {
+        let isActive = vm.filter != .all
+        return Menu {
             ForEach(DiscoverViewModel.MediaFilter.allCases) { option in
-                let isActive = vm.filter == option
                 Button {
                     vm.filter = option
                 } label: {
-                    Text(option.label)
-                        .font(Theme.Typography.footnote.weight(.semibold))
-                        .foregroundStyle(isActive ? Color(hex: 0x2A1A05) : Theme.Colors.textPrimary)
-                        .padding(.horizontal, Theme.Spacing.sm)
-                        .padding(.vertical, 7)
-                        .background(
-                            ZStack {
-                                if isActive {
-                                    Capsule().fill(Theme.Colors.accentGradient)
-                                    Capsule()
-                                        .fill(Theme.Colors.accentSheen)
-                                        .blendMode(.plusLighter)
-                                        .allowsHitTesting(false)
-                                } else {
-                                    Capsule().fill(.ultraThinMaterial.opacity(0.4))
-                                }
-                            }
-                        )
-                        .overlay(
-                            Capsule().stroke(
-                                isActive ? Color.white.opacity(0.28) : Theme.Colors.border,
-                                lineWidth: 0.5
-                            )
-                        )
-                        .shadow(
-                            color: isActive ? Theme.Colors.accentGlow.opacity(0.55) : .clear,
-                            radius: 10, y: 4
-                        )
+                    Label(option.label,
+                          systemImage: vm.filter == option ? "checkmark" : "")
                 }
-                .buttonStyle(CineoPressStyle(scale: 0.94))
             }
+        } label: {
+            filterPillLabel(
+                icon: "film.stack",
+                text: vm.filter == .all ? "Typ" : vm.filter.label,
+                isActive: isActive
+            )
         }
+    }
+
+    private func filterPillLabel(icon: String, text: String, isActive: Bool) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+            Text(text)
+                .font(Theme.Typography.footnote.weight(.semibold))
+            Image(systemName: "chevron.down")
+                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .opacity(0.7)
+        }
+        .foregroundStyle(isActive ? Color(hex: 0x2A1A05) : Theme.Colors.textPrimary)
+        .padding(.horizontal, Theme.Spacing.sm)
+        .padding(.vertical, 7)
+        .background(
+            ZStack {
+                if isActive {
+                    Capsule().fill(Theme.Colors.accentGradient)
+                    Capsule()
+                        .fill(Theme.Colors.accentSheen)
+                        .blendMode(.plusLighter)
+                        .allowsHitTesting(false)
+                } else {
+                    Capsule().fill(.ultraThinMaterial.opacity(0.4))
+                }
+            }
+        )
+        .overlay(
+            Capsule().stroke(
+                isActive ? Color.white.opacity(0.28) : Theme.Colors.border,
+                lineWidth: 0.5
+            )
+        )
+        .shadow(
+            color: isActive ? Theme.Colors.accentGlow.opacity(0.55) : .clear,
+            radius: 10, y: 4
+        )
     }
 
     @ViewBuilder
@@ -146,13 +163,13 @@ struct DiscoverView: View {
     private var stackView: some View {
         // Card is centered vertically between the top bar and the action
         // buttons. Two spacers with the same minLength keep the card visually
-        // centered while still guaranteeing a minimum breathing room top &
-        // bottom.
+        // centered while still guaranteeing a comfortable breathing room
+        // above and below.
         VStack(spacing: 0) {
-            Spacer(minLength: Theme.Spacing.sm)
+            Spacer(minLength: Theme.Spacing.md)
             cardStack
                 .padding(.horizontal, Theme.Spacing.md)
-            Spacer(minLength: Theme.Spacing.sm)
+            Spacer(minLength: Theme.Spacing.md)
             if let top = viewModel.stack.first {
                 actionButtons(for: top)
                     .padding(.horizontal, Theme.Spacing.lg)
