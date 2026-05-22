@@ -3,7 +3,17 @@ import SwiftUI
 struct WatchlistView: View {
 
     @Environment(LibraryRepository.self) private var library
+
     @State private var rateTarget: LibraryItem?
+
+    // Inline TMDB search
+    @State private var searchQuery: String = ""
+    @State private var searchResults: [TMDBSearchMultiResult] = []
+    @State private var searchIsLoading: Bool = false
+    @State private var searchError: String?
+    @State private var pendingAdd: TMDBSearchMultiResult?
+
+    @FocusState private var searchFocused: Bool
 
     private var unwatched: [LibraryItem] {
         library.items
@@ -12,24 +22,57 @@ struct WatchlistView: View {
     }
 
     var body: some View {
-        ZStack {
-            Theme.Colors.background.ignoresSafeArea()
-            content
-            if let item = rateTarget {
-                RatingOverlay(
-                    title: item.title,
-                    posterPath: item.posterPath,
-                    onRate: { value in commit(value, for: item) },
-                    onSkip: { commit(nil, for: item) },
-                    onCancel: { rateTarget = nil }
-                )
-                .zIndex(99)
+        NavigationStack {
+            ZStack {
+                Theme.Colors.background.ignoresSafeArea()
+                VStack(spacing: 0) {
+                    CineoSearchField(
+                        text: $searchQuery,
+                        placeholder: "Film oder Serie hinzufügen …",
+                        focus: $searchFocused
+                    )
+                    .padding(.horizontal, Theme.Spacing.md)
+                    .padding(.top, Theme.Spacing.xs)
+                    .padding(.bottom, Theme.Spacing.sm)
+
+                    if isSearching {
+                        searchResultsList
+                    } else {
+                        watchlistList
+                    }
+                }
+                if let item = rateTarget {
+                    RatingOverlay(
+                        title: item.title,
+                        posterPath: item.posterPath,
+                        onRate: { value in commit(value, for: item) },
+                        onSkip: { commit(nil, for: item) },
+                        onCancel: { rateTarget = nil }
+                    )
+                    .zIndex(99)
+                }
             }
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: LibraryItem.self) { item in
+                LibraryDetailView(item: item)
+            }
+        }
+        .task(id: trimmedQuery) {
+            try? await Task.sleep(for: .milliseconds(300))
+            if Task.isCancelled { return }
+            await performSearch()
+        }
+        .sheet(item: $pendingAdd) { item in
+            AddTitleSheet(result: item)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
         }
     }
 
+    // MARK: - Watchlist list
+
     @ViewBuilder
-    private var content: some View {
+    private var watchlistList: some View {
         if library.isLoading && library.items.isEmpty {
             LoadingStateView(message: "Lade Watchlist …")
         } else if unwatched.isEmpty {
@@ -48,11 +91,12 @@ struct WatchlistView: View {
                     }
                 }
                 .padding(.horizontal, Theme.Spacing.md)
-                .padding(.top, Theme.Spacing.sm)
                 .padding(.bottom, Theme.Spacing.lg)
             }
         }
     }
+
+    // MARK: - Mark watched
 
     private func commit(_ rating: Int?, for item: LibraryItem) {
         Task {
@@ -60,49 +104,182 @@ struct WatchlistView: View {
             rateTarget = nil
         }
     }
+
+    // MARK: - Search
+
+    private var trimmedQuery: String {
+        searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    private var isSearching: Bool { !trimmedQuery.isEmpty }
+
+    @ViewBuilder
+    private var searchResultsList: some View {
+        if searchIsLoading && searchResults.isEmpty {
+            LoadingStateView(message: "Suche …")
+        } else if let searchError {
+            EmptyStateView(
+                symbol: "exclamationmark.triangle",
+                title: "Hat nicht geklappt",
+                message: searchError
+            )
+        } else if searchResults.isEmpty {
+            EmptyStateView(
+                symbol: "moon.zzz",
+                title: "Keine Treffer",
+                message: "Versuch einen anderen Suchbegriff."
+            )
+        } else {
+            ScrollView {
+                LazyVStack(spacing: Theme.Spacing.sm) {
+                    ForEach(searchResults, id: \.id) { item in
+                        WatchlistSearchRow(
+                            result: item,
+                            isInLibrary: library.contains(tmdbId: item.id)
+                        ) {
+                            pendingAdd = item
+                        }
+                    }
+                }
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.vertical, Theme.Spacing.sm)
+            }
+        }
+    }
+
+    private func performSearch() async {
+        let q = trimmedQuery
+        guard !q.isEmpty else {
+            searchResults = []
+            searchError = nil
+            return
+        }
+        searchIsLoading = true
+        defer { searchIsLoading = false }
+        do {
+            let res = try await TMDBClient.shared.searchMulti(query: q)
+            searchResults = res
+            searchError = nil
+        } catch let err as TMDBError {
+            searchError = err.localizedDescription
+        } catch let err {
+            searchError = err.localizedDescription
+        }
+    }
 }
+
+// MARK: - Row
 
 private struct WatchlistRow: View {
     let item: LibraryItem
     let onMarkSeen: () -> Void
 
     var body: some View {
-        HStack(spacing: Theme.Spacing.md) {
-            PosterView(path: item.posterPath, size: "w342", radius: Theme.Radius.md, shadow: false)
-                .frame(width: 84)
+        ZStack {
+            // Tappable content area — pushes the detail view.
+            NavigationLink(value: item) {
+                HStack(spacing: Theme.Spacing.md) {
+                    PosterView(path: item.posterPath, size: "w342", radius: Theme.Radius.md, shadow: false)
+                        .frame(width: 72)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .font(Theme.Typography.headline)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(item.title)
+                            .font(Theme.Typography.callout.weight(.semibold))
+                            .foregroundStyle(Theme.Colors.textPrimary)
+                            .lineLimit(2)
+
+                        HStack(spacing: 6) {
+                            Image(systemName: item.mediaType.symbol)
+                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            Text(item.mediaType.displayName)
+                                .font(Theme.Typography.caption)
+                            if !item.year.isEmpty {
+                                Text("·").foregroundStyle(Theme.Colors.textTertiary)
+                                Text(item.year)
+                                    .font(Theme.Typography.caption)
+                            }
+                        }
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                    }
+
+                    Spacer(minLength: 0)
+                    // Reserve room for the eye on the right.
+                    Color.clear.frame(width: 40, height: 1)
+                }
+                .padding(Theme.Spacing.sm)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            // Eye sits as an overlay on the right; it intercepts taps so
+            // tapping it never pushes the navigation link.
+            HStack {
+                Spacer()
+                Image(systemName: "eye.fill")
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.Colors.accent)
+                    .shadow(color: Theme.Colors.accentGlow.opacity(0.5), radius: 6, y: 1)
+                    .padding(Theme.Spacing.sm)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onMarkSeen()
+                    }
+                    .accessibilityLabel("Als gesehen markieren")
+            }
+            .padding(.trailing, Theme.Spacing.xs)
+        }
+        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                .strokeBorder(Theme.Colors.borderSubtle, lineWidth: 0.5)
+        )
+    }
+}
+
+private struct WatchlistSearchRow: View {
+    let result: TMDBSearchMultiResult
+    let isInLibrary: Bool
+    let onAdd: () -> Void
+
+    var body: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            PosterView(path: result.posterPath, size: "w342", radius: Theme.Radius.md, shadow: false)
+                .frame(width: 72)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(result.displayTitle)
+                    .font(Theme.Typography.callout.weight(.semibold))
                     .foregroundStyle(Theme.Colors.textPrimary)
                     .lineLimit(2)
-
-                HStack(spacing: Theme.Spacing.xs) {
-                    Label(item.mediaType.displayName, systemImage: item.mediaType.symbol)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                    if !item.year.isEmpty {
+                HStack(spacing: 6) {
+                    if let mt = result.resolvedMediaType {
+                        Image(systemName: mt.symbol)
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        Text(mt.displayName).font(Theme.Typography.caption)
+                    }
+                    if !result.year.isEmpty {
                         Text("·").foregroundStyle(Theme.Colors.textTertiary)
-                        Text(item.year)
-                            .font(Theme.Typography.caption)
-                            .foregroundStyle(Theme.Colors.textSecondary)
+                        Text(result.year).font(Theme.Typography.caption)
                     }
                 }
+                .foregroundStyle(Theme.Colors.textSecondary)
             }
 
             Spacer()
 
-            Button(action: onMarkSeen) {
-                Image(systemName: "eye.fill")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundStyle(Theme.Colors.textPrimary)
-                    .frame(width: 56, height: 56)
-                    .background(Theme.Colors.accentGradient, in: Circle())
-                    .shadow(color: Theme.Colors.accentGlow, radius: 14, y: 6)
+            Button(action: onAdd) {
+                Image(systemName: isInLibrary ? "checkmark.circle.fill" : "plus.circle.fill")
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .foregroundStyle(isInLibrary ? Theme.Colors.success : Theme.Colors.accent)
+                    .frame(width: 44, height: 44)
             }
             .buttonStyle(CineoPressStyle(scale: 0.9))
-            .accessibilityLabel("Als gesehen markieren")
+            .disabled(isInLibrary)
         }
-        .cineoCard(padding: Theme.Spacing.sm)
+        .padding(Theme.Spacing.sm)
+        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                .strokeBorder(Theme.Colors.borderSubtle, lineWidth: 0.5)
+        )
     }
 }

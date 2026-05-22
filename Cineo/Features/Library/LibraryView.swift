@@ -95,34 +95,10 @@ struct LibraryView: View {
     private var isSearching: Bool { !trimmedQuery.isEmpty }
 
     private var searchBar: some View {
-        HStack(spacing: Theme.Spacing.xs) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .foregroundStyle(Theme.Colors.textSecondary)
-            TextField("Film oder Serie hinzufügen …", text: $searchQuery)
-                .focused($searchFocused)
-                .font(Theme.Typography.body)
-                .foregroundStyle(Theme.Colors.textPrimary)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled(true)
-                .submitLabel(.search)
-            if !searchQuery.isEmpty {
-                Button {
-                    searchQuery = ""
-                    searchResults = []
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(Theme.Colors.textTertiary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, Theme.Spacing.md)
-        .frame(height: 48)
-        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.button, style: .continuous)
-                .strokeBorder(Theme.Colors.border, lineWidth: 0.5)
+        CineoSearchField(
+            text: $searchQuery,
+            placeholder: "Film oder Serie hinzufügen …",
+            focus: $searchFocused
         )
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.top, Theme.Spacing.xs)
