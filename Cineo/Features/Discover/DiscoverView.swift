@@ -287,7 +287,7 @@ struct DiscoverView: View {
 
     private func triggerSwipe(_ direction: SwipeDirection,
                               for candidate: DiscoverViewModel.Candidate,
-                              duration: Double = 0.28) {
+                              duration: Double = 0.5) {
         hapticConfirm()
         if reduceMotion {
             flyingOut = true
