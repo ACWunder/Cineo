@@ -242,7 +242,7 @@ struct DiscoverView: View {
             // intentional (a quick drag-swipe already feels good because the
             // finger carries the card most of the way; a tap starts at 0).
             CircleActionButton(symbol: "xmark", kind: .neutral, size: Theme.Layout.circleActionLg) {
-                triggerSwipe(.left, for: candidate, duration: 0.85)
+                triggerSwipe(.left, for: candidate, duration: 1.1)
             }
             // Plus — smaller, transparent ghost — adds to watchlist
             CircleActionButton(symbol: "plus", kind: .ghost, size: Theme.Layout.circleActionSm) {
@@ -287,7 +287,7 @@ struct DiscoverView: View {
 
     private func triggerSwipe(_ direction: SwipeDirection,
                               for candidate: DiscoverViewModel.Candidate,
-                              duration: Double = 0.5) {
+                              duration: Double = 0.28) {
         hapticConfirm()
         if reduceMotion {
             flyingOut = true
