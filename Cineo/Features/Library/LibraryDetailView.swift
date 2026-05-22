@@ -218,9 +218,11 @@ struct LibraryDetailView: View {
     @ViewBuilder
     private var castRow: some View {
         if let cast = extras?.cast, !cast.isEmpty {
-            // Centered, no horizontal scroll, no overflow — limit to four so
-            // the row fits the screen width on every device.
-            HStack(alignment: .top, spacing: Theme.Spacing.xs) {
+            // Each chip has a fixed width so the row stays centered no matter
+            // whether there are 1, 2, 3 or 4 cast members. With maxWidth
+            // .infinity on the chips the cells stretched apart and pushed
+            // outer entries to the screen edges.
+            HStack(alignment: .top, spacing: Theme.Spacing.sm) {
                 ForEach(Array(cast.prefix(4))) { member in
                     CastChip(member: member)
                 }
@@ -239,6 +241,7 @@ struct LibraryDetailView: View {
                 }
             }
             .padding(.vertical, Theme.Spacing.xs)
+            .frame(maxWidth: .infinity)
     }
 
     // MARK: - Description
@@ -584,6 +587,6 @@ private struct CastChip: View {
                     .multilineTextAlignment(.center)
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(width: 72)   // fixed width so 1-4 chips stay grouped + centered
     }
 }
