@@ -174,6 +174,8 @@ struct LibraryDetailView: View {
                 .multilineTextAlignment(.center)
                 .shadow(color: .black.opacity(0.55), radius: 10, y: 3)
                 .minimumScaleFactor(0.85)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .center)
 
             HStack(spacing: 6) {
                 Image(systemName: item.mediaType.symbol)
@@ -252,7 +254,8 @@ struct LibraryDetailView: View {
             .foregroundStyle(Theme.Colors.textPrimary.opacity(0.88))
             .multilineTextAlignment(.center)
             .lineSpacing(3)
-            .padding(.horizontal, Theme.Spacing.xs)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .center)
             .padding(.top, Theme.Spacing.xs)
     }
 
