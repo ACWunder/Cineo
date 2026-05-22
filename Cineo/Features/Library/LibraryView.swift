@@ -47,15 +47,19 @@ struct LibraryView: View {
 
     // MARK: - Library grid (watched = true)
 
+    private var allWatched: [LibraryItem] {
+        library.items.filter { $0.watched }
+    }
+
     private var watchedItems: [LibraryItem] {
-        viewModel.display(from: library.items.filter { $0.watched })
+        viewModel.display(from: allWatched)
     }
 
     @ViewBuilder
     private var libraryGrid: some View {
         if library.isLoading && library.items.isEmpty {
             LoadingStateView(message: "Lade Bibliothek …")
-        } else if watchedItems.isEmpty {
+        } else if allWatched.isEmpty {
             EmptyStateView(
                 symbol: "books.vertical",
                 title: "Noch nichts gesehen",
@@ -72,18 +76,53 @@ struct LibraryView: View {
                 .padding(.top, Theme.Spacing.xs)
                 .padding(.bottom, Theme.Spacing.sm)
 
-                LazyVGrid(columns: columns, spacing: Theme.Spacing.md) {
-                    ForEach(watchedItems) { item in
-                        NavigationLink(value: item) {
-                            LibraryGridCell(item: item)
+                if watchedItems.isEmpty {
+                    filterEmptyState
+                } else {
+                    LazyVGrid(columns: columns, spacing: Theme.Spacing.md) {
+                        ForEach(watchedItems) { item in
+                            NavigationLink(value: item) {
+                                LibraryGridCell(item: item)
+                            }
+                            .buttonStyle(CineoPressStyle(scale: 0.97))
                         }
-                        .buttonStyle(CineoPressStyle(scale: 0.97))
                     }
+                    .padding(.horizontal, Theme.Spacing.md)
+                    .padding(.bottom, Theme.Spacing.lg)
                 }
-                .padding(.horizontal, Theme.Spacing.md)
-                .padding(.bottom, Theme.Spacing.lg)
             }
         }
+    }
+
+    private var filterEmptyState: some View {
+        VStack(spacing: Theme.Spacing.md) {
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .font(.system(size: 40, weight: .light, design: .rounded))
+                .foregroundStyle(Theme.Colors.textTertiary)
+            Text("Keine Treffer mit diesem Filter")
+                .font(Theme.Typography.headline)
+                .foregroundStyle(Theme.Colors.textPrimary)
+            Text("Setze den Filter zurück, um alle Titel zu sehen.")
+                .font(Theme.Typography.callout)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .multilineTextAlignment(.center)
+            Button {
+                viewModel.filter = .all
+            } label: {
+                Text("Filter zurücksetzen")
+                    .font(Theme.Typography.footnote.weight(.semibold))
+                    .foregroundStyle(Color(hex: 0x2A1A05))
+                    .padding(.horizontal, Theme.Spacing.md)
+                    .padding(.vertical, 9)
+                    .background(Theme.Colors.accentGradient, in: Capsule())
+                    .overlay(Capsule().stroke(Color.white.opacity(0.22), lineWidth: 0.5))
+                    .shadow(color: Theme.Colors.accentGlow, radius: 14, y: 4)
+            }
+            .buttonStyle(CineoPressStyle(scale: 0.94))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Theme.Spacing.xxl)
+        .padding(.horizontal, Theme.Spacing.lg)
     }
 
     // MARK: - Search bar + results
