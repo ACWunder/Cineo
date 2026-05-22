@@ -7,6 +7,11 @@ final class LibraryRepository {
 
     private(set) var items: [LibraryItem] = []
     private(set) var isLoading: Bool = false
+    /// Becomes true once the snapshot listener has delivered its first
+    /// callback — i.e. items now reflects what's actually in Firestore.
+    /// Used by DiscoverView to avoid showing candidates that are already
+    /// in the library before the first snapshot arrives.
+    private(set) var hasLoadedInitial: Bool = false
     private(set) var lastError: String?
 
     private var listener: ListenerRegistration?
@@ -18,11 +23,13 @@ final class LibraryRepository {
         stop()
         self.uid = uid
         isLoading = true
+        hasLoadedInitial = false
         let ref = db.collection("users").document(uid).collection("library")
         listener = ref.addSnapshotListener { [weak self] snapshot, error in
             Task { @MainActor in
                 guard let self else { return }
                 self.isLoading = false
+                self.hasLoadedInitial = true
                 if let error {
                     self.lastError = error.localizedDescription
                     return
@@ -39,6 +46,7 @@ final class LibraryRepository {
         listener = nil
         uid = nil
         items = []
+        hasLoadedInitial = false
     }
 
     // MARK: - Mutations

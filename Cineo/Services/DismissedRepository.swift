@@ -6,6 +6,7 @@ import FirebaseFirestore
 final class DismissedRepository {
 
     private(set) var items: [DismissedItem] = []
+    private(set) var hasLoadedInitial: Bool = false
     private(set) var lastError: String?
 
     private var listener: ListenerRegistration?
@@ -16,10 +17,12 @@ final class DismissedRepository {
         guard self.uid != uid else { return }
         stop()
         self.uid = uid
+        hasLoadedInitial = false
         let ref = db.collection("users").document(uid).collection("dismissed")
         listener = ref.addSnapshotListener { [weak self] snapshot, error in
             Task { @MainActor in
                 guard let self else { return }
+                self.hasLoadedInitial = true
                 if let error { self.lastError = error.localizedDescription; return }
                 guard let snapshot else { return }
                 self.items = snapshot.documents.compactMap { Self.decode($0.data()) }
@@ -32,6 +35,7 @@ final class DismissedRepository {
         listener = nil
         uid = nil
         items = []
+        hasLoadedInitial = false
     }
 
     func dismiss(tmdbId: Int, mediaType: MediaType) async {

@@ -57,6 +57,12 @@ struct DiscoverView: View {
         }
         .task {
             if !didInitialLoad {
+                // Wait until both the library and the dismissed snapshots
+                // have actually arrived from Firestore. Otherwise the first
+                // reload runs against an empty library and briefly shows
+                // candidates that are already saved/dismissed before swapping
+                // them out when the snapshot finally lands.
+                await waitForInitialSnapshots()
                 didInitialLoad = true
                 await reload()
             }
@@ -487,6 +493,18 @@ struct DiscoverView: View {
     }
 
     // MARK: - Data
+
+    /// Polls until both Firestore repositories have delivered their first
+    /// snapshot. Caps at ~3 seconds so a slow network doesn't keep the user
+    /// staring at the empty stack — after that the reload runs anyway.
+    private func waitForInitialSnapshots() async {
+        let deadline = Date().addingTimeInterval(3.0)
+        while !(library.hasLoadedInitial && dismissed.hasLoadedInitial) {
+            if Date() >= deadline { return }
+            try? await Task.sleep(for: .milliseconds(40))
+            if Task.isCancelled { return }
+        }
+    }
 
     private func reload(preserveVisible: Int = 0) async {
         let libraryItems = library.items
