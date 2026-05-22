@@ -52,14 +52,15 @@ struct DiscoverView: View {
             }
         }
         .onChange(of: library.items.count) { _, _ in
-            // Library changed → recompute the pool, but keep whatever card
-            // the user is currently looking at stable.
+            // Library changed → recompute the pool, but keep every card the
+            // user can currently see stable. Re-mixing happens silently
+            // beyond the visible stack.
             guard didInitialLoad else { return }
-            Task { await reload(preserveTop: true) }
+            Task { await reload(preserveVisible: 3) }
         }
         .onChange(of: dismissed.items.count) { _, _ in
             guard didInitialLoad else { return }
-            Task { await reload(preserveTop: true) }
+            Task { await reload(preserveVisible: 3) }
         }
     }
 
@@ -370,22 +371,24 @@ struct DiscoverView: View {
 
     // MARK: - Data
 
-    private func reload(preserveTop: Bool = false) async {
+    private func reload(preserveVisible: Int = 0) async {
         let libraryItems = library.items
         let dismissedIds = Set(dismissed.items.map(\.tmdbId))
         await viewModel.reload(
             library: libraryItems,
             dismissedIds: dismissedIds,
-            preserveTop: preserveTop
+            preserveVisible: preserveVisible
         )
     }
 
-    /// Wrap viewModel.popTop with an auto-refill when the deck thins out.
-    /// Called from every place that previously called popTop directly.
+    /// Wrap viewModel.popTop with an auto-refill when the deck almost runs
+    /// out. We preserve whatever stack is left so the user's view never
+    /// shuffles under them — only the off-screen tail gets refreshed.
     private func popAndMaybeRefill() {
         viewModel.popTop()
-        if viewModel.stack.count <= 2 && !viewModel.isLoading {
-            Task { await reload(preserveTop: true) }
+        if viewModel.stack.count <= 1 && !viewModel.isLoading {
+            let visibleAfterPop = viewModel.stack.count
+            Task { await reload(preserveVisible: visibleAfterPop) }
         }
     }
 }
