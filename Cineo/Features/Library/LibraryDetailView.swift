@@ -41,6 +41,7 @@ struct LibraryDetailView: View {
                 if !item.genres.isEmpty { genrePills }
                 if isInLibrary { ratingRow }
                 if !item.overview.isEmpty { description }
+                trailerPill
                 castRow
                 actions
             }
@@ -133,37 +134,37 @@ struct LibraryDetailView: View {
     // MARK: - Cover + title
 
     private var cover: some View {
-        ZStack(alignment: .bottomTrailing) {
-            PosterView(path: item.posterPath, size: "w780", radius: Theme.Radius.lg)
-                .frame(maxWidth: 220)
-                .shadow(color: Theme.Colors.shadow, radius: 38, y: 22)
-                .shadow(color: Theme.Colors.accentGlow.opacity(0.25), radius: 70, y: 0)
+        PosterView(path: item.posterPath, size: "w780", radius: Theme.Radius.lg)
+            .frame(maxWidth: 220)
+            .shadow(color: Theme.Colors.shadow, radius: 38, y: 22)
+            .shadow(color: Theme.Colors.accentGlow.opacity(0.25), radius: 70, y: 0)
+            .padding(.top, Theme.Spacing.xs)
+    }
 
-            if let key = extras?.trailerYouTubeKey {
-                Button {
-                    openTrailer(key: key)
-                } label: {
+    @ViewBuilder
+    private var trailerPill: some View {
+        if let key = extras?.trailerYouTubeKey {
+            Button {
+                openTrailer(key: key)
+            } label: {
+                HStack(spacing: 8) {
                     Image(systemName: "play.fill")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.Colors.accentLight)
-                        .frame(width: 44, height: 44)
-                        .background(
-                            ZStack {
-                                Circle().fill(.ultraThinMaterial.opacity(0.55))
-                                Circle().fill(Theme.Colors.accent.opacity(0.18))
-                            }
-                        )
-                        .overlay(
-                            Circle().stroke(Theme.Colors.accent.opacity(0.5), lineWidth: 0.8)
-                        )
-                        .shadow(color: Theme.Colors.accentGlow.opacity(0.35), radius: 12, y: 4)
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                    Text("Trailer")
+                        .font(Theme.Typography.footnote.weight(.semibold))
                 }
-                .buttonStyle(CineoPressStyle(scale: 0.9))
-                .padding(10)
-                .accessibilityLabel("Trailer abspielen")
+                .foregroundStyle(Theme.Colors.accentLight)
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.vertical, 9)
+                .background(.ultraThinMaterial.opacity(0.5), in: Capsule())
+                .overlay(
+                    Capsule().stroke(Theme.Colors.accent.opacity(0.45), lineWidth: 0.7)
+                )
+                .shadow(color: Theme.Colors.accentGlow.opacity(0.18), radius: 10, y: 3)
             }
+            .buttonStyle(CineoPressStyle(scale: 0.94))
+            .accessibilityLabel("Trailer abspielen")
         }
-        .padding(.top, Theme.Spacing.xs)
     }
 
     private func openTrailer(key: String) {
