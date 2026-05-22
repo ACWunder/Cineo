@@ -1,24 +1,21 @@
-//
-//  ContentView.swift
-//  Cineo
-//
-//  Created by Arthur Wunder on 22.05.26.
-//
-
 import SwiftUI
 
 struct ContentView: View {
-    var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
-    }
-}
+    @Environment(AuthService.self) private var auth
 
-#Preview {
-    ContentView()
+    var body: some View {
+        ZStack {
+            Theme.Colors.background.ignoresSafeArea()
+            switch auth.state {
+            case .loading:
+                LoadingStateView(message: "Cineo wird vorbereitet …")
+            case .signedOut:
+                AuthGateView()
+            case .signedIn:
+                MainTabView()
+            }
+        }
+        .preferredColorScheme(.dark)
+        .tint(Theme.Colors.accent)
+    }
 }
