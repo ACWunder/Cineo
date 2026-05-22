@@ -63,7 +63,7 @@ struct DiscoverView: View {
             .buttonStyle(CineoPressStyle(scale: 0.92))
         }
         .padding(.horizontal, Theme.Spacing.md)
-        .padding(.bottom, Theme.Spacing.xl)
+        .padding(.bottom, Theme.Spacing.md)
     }
 
     private var filterChips: some View {
