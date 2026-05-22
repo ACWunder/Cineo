@@ -199,12 +199,14 @@ actor TMDBClient {
 
     private nonisolated static func mapProviders(_ region: TMDBProviderRegion?) -> [DetailExtras.Provider] {
         guard let region else { return [] }
-        // Prefer flatrate (subscription) — that's the most relevant for "where
-        // can I stream this?". Falls back to free, then ads, then rent / buy.
-        let pool = region.flatrate ?? region.free ?? region.ads ?? region.rent ?? region.buy ?? []
+        // Subscription flat-rate only — rent / buy / ad-supported listings tend
+        // to be obscure regional providers users don't recognise.
+        let pool = region.flatrate ?? []
         return pool
+            .filter { $0.logoPath != nil }                                  // skip logo-less entries
+            .filter { ($0.displayPriority ?? Int.max) < 30 }                // skip long-tail providers
             .sorted(by: { ($0.displayPriority ?? Int.max) < ($1.displayPriority ?? Int.max) })
-            .prefix(6)
+            .prefix(4)
             .map {
                 DetailExtras.Provider(
                     id: $0.providerId,

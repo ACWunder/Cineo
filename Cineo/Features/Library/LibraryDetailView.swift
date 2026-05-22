@@ -241,25 +241,14 @@ struct LibraryDetailView: View {
     @ViewBuilder
     private var castRow: some View {
         if let cast = extras?.cast, !cast.isEmpty {
-            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
-                Text("Besetzung")
-                    .font(Theme.Typography.caption)
-                    .tracking(1.2)
-                    .foregroundStyle(Theme.Colors.textTertiary)
-                    .padding(.horizontal, Theme.Spacing.xs)
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .top, spacing: Theme.Spacing.sm) {
-                        ForEach(cast) { member in
-                            CastChip(member: member)
-                        }
-                    }
-                    .padding(.horizontal, Theme.Spacing.xs)
+            // Centered, no horizontal scroll, no overflow — limit to four so
+            // the row fits the screen width on every device.
+            HStack(alignment: .top, spacing: Theme.Spacing.xs) {
+                ForEach(Array(cast.prefix(4))) { member in
+                    CastChip(member: member)
                 }
-                .scrollClipDisabled()
-                .padding(.horizontal, -Theme.Spacing.xs)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -598,7 +587,7 @@ private struct CastChip: View {
                     )
                 }
             }
-            .frame(width: 68, height: 68)
+            .frame(width: 60, height: 60)
             .clipShape(Circle())
             .overlay(
                 Circle().stroke(Color.white.opacity(0.08), lineWidth: 0.5)
@@ -606,7 +595,7 @@ private struct CastChip: View {
             .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
 
             Text(member.name)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
@@ -615,8 +604,9 @@ private struct CastChip: View {
                     .font(.system(size: 10, weight: .regular, design: .rounded))
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .lineLimit(1)
+                    .multilineTextAlignment(.center)
             }
         }
-        .frame(width: 88)
+        .frame(maxWidth: .infinity)
     }
 }
