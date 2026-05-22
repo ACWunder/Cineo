@@ -17,6 +17,16 @@ struct DiscoverView: View {
     @State private var flyingOut: Bool = false
     @State private var path = NavigationPath()
 
+    /// A snapshot of the card the user just dismissed, while it animates
+    /// off-screen independently from the stack. Popping the stack runs
+    /// the moment the swipe starts, so the next card rises into place
+    /// right away — the leaving card just keeps flying outwards on its
+    /// own layer.
+    @State private var departingCard: DiscoverViewModel.Candidate?
+    @State private var departingOffset: CGSize = .zero
+    @State private var departingRotation: Double = 0
+    @State private var departingOpacity: Double = 1
+
     private let swipeThreshold: CGFloat = 110
     private let maxRotation: Double = 12
 
@@ -167,14 +177,30 @@ struct DiscoverView: View {
         // above and below.
         VStack(spacing: 0) {
             Spacer(minLength: Theme.Spacing.md)
-            cardStack
-                .padding(.horizontal, Theme.Spacing.md)
+            ZStack {
+                cardStack
+                departingOverlay
+            }
+            .padding(.horizontal, Theme.Spacing.md)
             Spacer(minLength: Theme.Spacing.md)
             if let top = viewModel.stack.first {
                 actionButtons(for: top)
                     .padding(.horizontal, Theme.Spacing.lg)
                     .padding(.bottom, Theme.Spacing.lg)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var departingOverlay: some View {
+        if let departing = departingCard {
+            DiscoverCardView(candidate: departing)
+                .frame(maxWidth: 520)
+                .offset(departingOffset)
+                .rotationEffect(.degrees(departingRotation), anchor: .bottom)
+                .opacity(departingOpacity)
+                .allowsHitTesting(false)
+                .zIndex(99)
         }
     }
 
@@ -308,36 +334,94 @@ struct DiscoverView: View {
                               for candidate: DiscoverViewModel.Candidate,
                               duration: Double = 0.28) {
         hapticConfirm()
-        if reduceMotion {
-            flyingOut = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                finalizeSwipe(direction, candidate: candidate)
-            }
-        } else {
-            withAnimation(.easeOut(duration: duration)) {
-                offset = CGSize(width: 900 * direction.sign, height: offset.height + 60)
+        switch direction {
+        case .left:
+            // Detach the visible top card into a separate "departing" layer
+            // and pop the stack immediately. Result: the next card rises
+            // into place at the same moment the leaving card starts its
+            // long slide off-screen — no delay between the two.
+            startDeparture(candidate, direction: .left, duration: duration)
+        case .right:
+            // Right swipe keeps the card on stack; the rating overlay
+            // decides what to do next.
+            if reduceMotion {
                 flyingOut = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-                finalizeSwipe(direction, candidate: candidate)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    offset = .zero
+                    flyingOut = false
+                    openRating(for: candidate)
+                }
+            } else {
+                withAnimation(.easeOut(duration: duration)) {
+                    offset = CGSize(width: 900 * direction.sign, height: offset.height + 60)
+                    flyingOut = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+                    offset = .zero
+                    flyingOut = false
+                    openRating(for: candidate)
+                }
             }
         }
     }
 
-    private func finalizeSwipe(_ direction: SwipeDirection, candidate: DiscoverViewModel.Candidate) {
-        Task {
+    /// Snapshot the top card into `departingCard` (separate layer), then pop
+    /// the stack so the next card starts rising right away. The departing
+    /// layer keeps animating outwards for `duration` seconds independently.
+    private func startDeparture(_ candidate: DiscoverViewModel.Candidate,
+                                direction: SwipeDirection,
+                                duration: Double) {
+        let startingOffset = offset
+        let startingRotation = rotationAngle
+
+        departingCard = candidate
+        departingOffset = startingOffset
+        departingRotation = startingRotation
+        departingOpacity = 1
+
+        // Reset the stack offset so the next card sits naturally centered.
+        offset = .zero
+        flyingOut = false
+
+        // Pop the model immediately, with a spring on the depth/scale
+        // transitions so the next card glides forward smoothly.
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
             switch direction {
             case .left:
-                await dismissed.dismiss(tmdbId: candidate.tmdbId, mediaType: candidate.mediaType)
+                Task { await dismissed.dismiss(tmdbId: candidate.tmdbId, mediaType: candidate.mediaType) }
                 popAndMaybeRefill()
             case .right:
-                // Right swipe = "Gesehen" — open rating overlay without removing
-                // the card from the stack until the user finishes the overlay.
-                openRating(for: candidate)
+                popAndMaybeRefill()
             }
-            offset = .zero
-            flyingOut = false
         }
+
+        // Send the departing card off-screen. Reduced motion: short fade
+        // instead of a slide.
+        if reduceMotion {
+            withAnimation(.easeOut(duration: 0.25)) {
+                departingOpacity = 0
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { clearDeparture() }
+        } else {
+            withAnimation(.easeOut(duration: duration)) {
+                departingOffset = CGSize(
+                    width: 1200 * direction.sign,
+                    height: startingOffset.height + 80
+                )
+                departingRotation = direction.sign > 0 ? 20 : -20
+            }
+            withAnimation(.easeIn(duration: duration * 0.6).delay(duration * 0.4)) {
+                departingOpacity = 0
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + duration) { clearDeparture() }
+        }
+    }
+
+    private func clearDeparture() {
+        departingCard = nil
+        departingOffset = .zero
+        departingRotation = 0
+        departingOpacity = 1
     }
 
     // MARK: - Watchlist / Rating
