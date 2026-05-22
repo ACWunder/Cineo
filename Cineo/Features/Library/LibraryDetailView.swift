@@ -24,7 +24,7 @@ struct LibraryDetailView: View {
                     if !item.overview.isEmpty { description }
                     actions
                 }
-                .padding(.horizontal, Theme.Spacing.lg)
+                .padding(.horizontal, Theme.Spacing.xl)
                 .padding(.top, Theme.Spacing.lg)
                 .padding(.bottom, Theme.Spacing.xxl)
             }
@@ -119,25 +119,21 @@ struct LibraryDetailView: View {
     // MARK: - Genres
 
     private var genrePills: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(item.genres, id: \.self) { g in
-                    Text(g.uppercased())
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .tracking(1.0)
-                        .foregroundStyle(Theme.Colors.accentLight)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(.ultraThinMaterial.opacity(0.5), in: Capsule())
-                        .overlay(
-                            Capsule().strokeBorder(Theme.Colors.accent.opacity(0.3), lineWidth: 0.7)
-                        )
-                }
+        CenteredFlow(spacing: 6, lineSpacing: 6) {
+            ForEach(item.genres, id: \.self) { g in
+                Text(g.uppercased())
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .tracking(1.0)
+                    .foregroundStyle(Theme.Colors.accentLight)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(.ultraThinMaterial.opacity(0.5), in: Capsule())
+                    .overlay(
+                        Capsule().strokeBorder(Theme.Colors.accent.opacity(0.3), lineWidth: 0.7)
+                    )
             }
-            .padding(.horizontal, Theme.Spacing.sm)
         }
-        .scrollClipDisabled()
-        .padding(.horizontal, -Theme.Spacing.sm)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Rating
@@ -299,6 +295,63 @@ struct LibraryDetailView: View {
             showRatingOverlay = false
             dismiss()
         }
+    }
+}
+
+// Flow layout that centers each row horizontally.
+struct CenteredFlow: Layout {
+    var spacing: CGFloat = 8
+    var lineSpacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = computeRows(maxWidth: proposal.width ?? .infinity, subviews: subviews)
+        let height = rows.reduce(into: CGFloat(0)) { acc, row in
+            acc += row.height
+            acc += lineSpacing
+        } - (rows.isEmpty ? 0 : lineSpacing)
+        let widest = rows.map(\.width).max() ?? 0
+        return CGSize(width: widest, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let rows = computeRows(maxWidth: bounds.width, subviews: subviews)
+        var y = bounds.minY
+        for row in rows {
+            let rowWidth = row.width
+            var x = bounds.minX + (bounds.width - rowWidth) / 2  // center
+            for index in row.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: y),
+                                      proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + lineSpacing
+        }
+    }
+
+    private struct Row {
+        var indices: [Int] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    private func computeRows(maxWidth: CGFloat, subviews: Subviews) -> [Row] {
+        var rows: [Row] = []
+        var current = Row()
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            let projected = current.width + (current.indices.isEmpty ? 0 : spacing) + size.width
+            if projected > maxWidth, !current.indices.isEmpty {
+                rows.append(current)
+                current = Row()
+            }
+            if !current.indices.isEmpty { current.width += spacing }
+            current.indices.append(index)
+            current.width += size.width
+            current.height = max(current.height, size.height)
+        }
+        if !current.indices.isEmpty { rows.append(current) }
+        return rows
     }
 }
 
