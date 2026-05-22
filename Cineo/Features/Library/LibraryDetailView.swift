@@ -165,21 +165,12 @@ struct LibraryDetailView: View {
     @ViewBuilder
     private var actions: some View {
         if isInLibrary {
-            HStack(spacing: Theme.Spacing.sm) {
-                actionPill(
-                    symbol: item.watched ? "eye.slash" : "eye.fill",
-                    label: item.watched ? "Ungesehen" : "Gesehen",
-                    kind: .neutral
-                ) {
-                    Task { await library.setWatched(tmdbId: item.tmdbId, watched: !item.watched) }
-                }
-                actionPill(
-                    symbol: "trash",
-                    label: "Entfernen",
-                    kind: .danger
-                ) {
-                    showDeleteConfirm = true
-                }
+            actionPill(
+                symbol: "trash",
+                label: "Aus Bibliothek entfernen",
+                kind: .danger
+            ) {
+                showDeleteConfirm = true
             }
             .padding(.top, Theme.Spacing.sm)
         } else {
