@@ -52,16 +52,16 @@ struct DiscoverView: View {
             }
         }
         .onChange(of: library.items.count) { _, _ in
-            // Library changed → recompute the pool, but keep every card the
-            // user can currently see stable. Re-mixing happens silently
-            // beyond the visible stack.
+            // Adding something to the library / watchlist re-ranks the pool,
+            // but the top 5 cards stay rock-stable so the visible deck never
+            // shuffles under the user.
             guard didInitialLoad else { return }
-            Task { await reload(preserveVisible: 3) }
+            Task { await reload(preserveVisible: 5) }
         }
-        .onChange(of: dismissed.items.count) { _, _ in
-            guard didInitialLoad else { return }
-            Task { await reload(preserveVisible: 3) }
-        }
+        // Intentionally *no* onChange for dismissed: dismissing a card must
+        // never trigger a recompute. popTop already removes it from the
+        // local pool, and reloading here could race the snapshot listener
+        // and momentarily re-include the dismissed item.
     }
 
     private var topBar: some View {
@@ -383,15 +383,11 @@ struct DiscoverView: View {
         )
     }
 
-    /// Wrap viewModel.popTop with an auto-refill when the deck almost runs
-    /// out. We preserve whatever stack is left so the user's view never
-    /// shuffles under them — only the off-screen tail gets refreshed.
+    /// Plain pop. Refills are driven exclusively by library.items.count
+    /// changes (add to watchlist / mark watched), so dismissing alone never
+    /// triggers a recompute.
     private func popAndMaybeRefill() {
         viewModel.popTop()
-        if viewModel.stack.count <= 1 && !viewModel.isLoading {
-            let visibleAfterPop = viewModel.stack.count
-            Task { await reload(preserveVisible: visibleAfterPop) }
-        }
     }
 }
 
