@@ -28,16 +28,22 @@ final class HapticEngine {
     }
 
     func edge() {
+        // Re-prepare *before* the impact too: if the engine slept since the
+        // last call (more than a few seconds idle), the previous post-impact
+        // prepare() has worn off.
+        lightImpact.prepare()
         lightImpact.impactOccurred()
         lightImpact.prepare()
     }
 
     func confirm() {
+        mediumImpact.prepare()
         mediumImpact.impactOccurred()
         mediumImpact.prepare()
     }
 
     func soft() {
+        softImpact.prepare()
         softImpact.impactOccurred()
         softImpact.prepare()
     }

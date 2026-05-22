@@ -23,6 +23,11 @@ struct RatingOverlay: View {
                 .background(.ultraThinMaterial.opacity(0.5))
                 .contentShape(Rectangle())
                 .onTapGesture { if !isCommitting { onCancel() } }
+                .onAppear {
+                    // Wake the haptic engine up so the first star tap
+                    // doesn't pay the ~150ms cold-start cost.
+                    HapticEngine.shared.prepare()
+                }
 
             VStack(spacing: Theme.Spacing.lg) {
                 Spacer(minLength: 0)

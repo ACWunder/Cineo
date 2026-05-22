@@ -14,6 +14,21 @@ struct ContentView: View {
             case .signedIn:
                 MainTabView()
             }
+
+            // Pre-render the rating overlay's view tree once invisible so
+            // the first real rating doesn't pay SwiftUI's initial layout +
+            // compile cost. 1×1, fully transparent, hit-testing off.
+            RatingOverlay(
+                title: "",
+                posterPath: nil,
+                onRate: { _ in },
+                onSkip: {},
+                onCancel: {}
+            )
+            .frame(width: 1, height: 1)
+            .opacity(0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
         .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
