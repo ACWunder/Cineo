@@ -91,7 +91,13 @@ struct DiscoverView: View {
         return Menu {
             ForEach(DiscoverViewModel.MediaFilter.allCases) { option in
                 Button {
-                    vm.filter = option
+                    // Defer the actual mutation past the Menu's dismiss frame.
+                    // Setting it inline blocks the close animation on the same
+                    // run-loop tick as the ForEach/AsyncImage rebuild, which
+                    // is what froze the UI for ~2s.
+                    DispatchQueue.main.async {
+                        vm.filter = option
+                    }
                 } label: {
                     Label(option.label,
                           systemImage: vm.filter == option ? "checkmark" : "")

@@ -9,6 +9,17 @@ struct CineoApp: App {
 
     init() {
         FirebaseBootstrap.configure()
+
+        // Generous URLCache so AsyncImage hits the cache instead of re-
+        // downloading + decoding poster art on every filter switch /
+        // scroll back. TMDB's image CDN serves Cache-Control headers,
+        // so URLSession will respect this transparently.
+        URLCache.shared = URLCache(
+            memoryCapacity: 100 * 1024 * 1024,  // 100 MB in memory
+            diskCapacity: 500 * 1024 * 1024,    // 500 MB on disk
+            diskPath: nil
+        )
+
         _auth = State(initialValue: AuthService())
         _library = State(initialValue: LibraryRepository())
         _dismissed = State(initialValue: DismissedRepository())

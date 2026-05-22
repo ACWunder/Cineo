@@ -12,7 +12,7 @@ struct DiscoverCardView: View {
                 // Cover dominates the card
                 PosterView(
                     path: candidate.posterPath,
-                    size: "w780",
+                    size: "w500",
                     radius: 0,
                     shadow: false
                 )
