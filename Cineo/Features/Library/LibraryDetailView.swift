@@ -278,23 +278,26 @@ struct LibraryDetailView: View {
     // MARK: - Discover-rating commit
 
     private func saveDiscoverRating(_ value: Int?) {
-        Task {
-            let watched = LibraryItem(
-                tmdbId: item.tmdbId,
-                mediaType: item.mediaType,
-                title: item.title,
-                overview: item.overview,
-                year: item.year,
-                posterPath: item.posterPath,
-                genres: item.genres,
-                rating: value,
-                watched: true,
-                addedAt: Date()
-            )
-            await library.add(watched)
+        let watched = LibraryItem(
+            tmdbId: item.tmdbId,
+            mediaType: item.mediaType,
+            title: item.title,
+            overview: item.overview,
+            year: item.year,
+            posterPath: item.posterPath,
+            genres: item.genres,
+            rating: value,
+            watched: true,
+            addedAt: Date()
+        )
+        // Optimistic UI: fade overlay out, pop back, save in background.
+        withAnimation(.easeOut(duration: 0.25)) {
             showRatingOverlay = false
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
             dismiss()
         }
+        Task { await library.add(watched) }
     }
 }
 

@@ -99,10 +99,11 @@ struct WatchlistView: View {
     // MARK: - Mark watched
 
     private func commit(_ rating: Int?, for item: LibraryItem) {
-        Task {
-            await library.markWatched(tmdbId: item.tmdbId, rating: rating)
+        // Optimistic UI: close the overlay first, save in the background.
+        withAnimation(.easeOut(duration: 0.25)) {
             rateTarget = nil
         }
+        Task { await library.markWatched(tmdbId: item.tmdbId, rating: rating) }
     }
 
     // MARK: - Search

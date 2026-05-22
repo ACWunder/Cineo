@@ -325,12 +325,15 @@ struct DiscoverView: View {
     }
 
     private func commitRating(_ value: Int?, for candidate: DiscoverViewModel.Candidate) {
-        Task {
-            let item = viewModel.toLibraryItem(candidate, rating: value, watched: true)
-            await library.add(item)
+        let item = viewModel.toLibraryItem(candidate, rating: value, watched: true)
+        // Optimistic UI: dismiss the overlay and advance the stack right away.
+        // The Firestore write runs in the background — first-time save latency
+        // was the reason the first rating felt sluggish.
+        withAnimation(reduceMotion ? Theme.Motion.reduced : Theme.Motion.spring) {
             ratingCandidate = nil
-            viewModel.popTop()
         }
+        viewModel.popTop()
+        Task { await library.add(item) }
     }
 
     private func addToWatchlist(_ candidate: DiscoverViewModel.Candidate) async {
