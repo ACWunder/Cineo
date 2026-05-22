@@ -5,11 +5,17 @@ struct SeasonsView: View {
     @State private var viewModel = SeasonsViewModel()
 
     var body: some View {
-        ZStack {
-            Theme.Colors.background.ignoresSafeArea()
-            VStack(spacing: 0) {
-                topBar
-                content
+        NavigationStack {
+            ZStack {
+                Theme.Colors.background.ignoresSafeArea()
+                VStack(spacing: 0) {
+                    topBar
+                    content
+                }
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: LibraryItem.self) { item in
+                LibraryDetailView(item: item)
             }
         }
         .task(id: library.items.map(\.tmdbId)) {
@@ -24,16 +30,16 @@ struct SeasonsView: View {
                 Task { await viewModel.reload(library: library.items) }
             } label: {
                 Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.Colors.accentLight)
-                    .frame(width: 44, height: 44)
-                    .background(Theme.Colors.surfaceElevated, in: Circle())
+                    .frame(width: 40, height: 40)
+                    .background(.ultraThinMaterial.opacity(0.4), in: Circle())
                     .overlay(Circle().strokeBorder(Theme.Colors.border, lineWidth: 0.5))
             }
             .buttonStyle(CineoPressStyle(scale: 0.92))
         }
         .padding(.horizontal, Theme.Spacing.md)
-        .padding(.top, Theme.Spacing.xs)
+        .padding(.bottom, Theme.Spacing.xs)
     }
 
     @ViewBuilder
@@ -65,7 +71,10 @@ struct SeasonsView: View {
                     sectionHeader("Demnächst neu")
                     VStack(spacing: Theme.Spacing.sm) {
                         ForEach(viewModel.upcoming) { row in
-                            SeriesRow(status: row)
+                            NavigationLink(value: row.item) {
+                                SeriesRow(status: row)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -73,7 +82,10 @@ struct SeasonsView: View {
                     sectionHeader("Keine neue Staffel angekündigt")
                     VStack(spacing: Theme.Spacing.sm) {
                         ForEach(viewModel.dormant) { row in
-                            SeriesRow(status: row)
+                            NavigationLink(value: row.item) {
+                                SeriesRow(status: row)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -125,8 +137,12 @@ private struct SeriesRow: View {
                 }
             }
             Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(Theme.Colors.textTertiary)
         }
         .cineoCard(padding: Theme.Spacing.sm)
+        .contentShape(Rectangle())
     }
 
     private func formatDate(_ date: Date) -> String {
