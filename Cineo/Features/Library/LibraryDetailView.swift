@@ -12,6 +12,23 @@ struct LibraryDetailView: View {
 
     private var isInLibrary: Bool { library.contains(tmdbId: item.tmdbId) }
 
+    /// Resolves the live watched-state from the repository so toggles reflect
+    /// across edits without re-pushing the view.
+    private var liveWatched: Bool {
+        library.items.first(where: { $0.tmdbId == item.tmdbId })?.watched ?? item.watched
+    }
+
+    /// Three modes drive the buttons + the destructive-alert wording:
+    /// - .discover: the item isn't in the library yet (came from Discover detail)
+    /// - .watchlist: in the library but not yet watched
+    /// - .library: in the library and watched (with or without rating)
+    private enum Mode { case discover, watchlist, library }
+
+    private var mode: Mode {
+        guard isInLibrary else { return .discover }
+        return liveWatched ? .library : .watchlist
+    }
+
     var body: some View {
         ZStack {
             backdrop
@@ -33,8 +50,8 @@ struct LibraryDetailView: View {
                 RatingOverlay(
                     title: item.title,
                     posterPath: item.posterPath,
-                    onRate: { saveDiscoverRating($0) },
-                    onSkip: { saveDiscoverRating(nil) },
+                    onRate: { commitRating($0) },
+                    onSkip: { commitRating(nil) },
                     onCancel: { showRatingOverlay = false }
                 )
                 .zIndex(99)
@@ -44,7 +61,7 @@ struct LibraryDetailView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .onAppear { rating = item.rating ?? 0 }
-        .alert("Aus Bibliothek entfernen?", isPresented: $showDeleteConfirm) {
+        .alert(removeAlertTitle, isPresented: $showDeleteConfirm) {
             Button("Entfernen", role: .destructive) {
                 Task {
                     await library.remove(tmdbId: item.tmdbId)
@@ -54,6 +71,13 @@ struct LibraryDetailView: View {
             Button("Abbrechen", role: .cancel) {}
         } message: {
             Text("Du kannst „\(item.title)“ später wieder hinzufügen.")
+        }
+    }
+
+    private var removeAlertTitle: String {
+        switch mode {
+        case .watchlist: "Aus Watchlist entfernen?"
+        default: "Aus Bibliothek entfernen?"
         }
     }
 
@@ -164,7 +188,8 @@ struct LibraryDetailView: View {
 
     @ViewBuilder
     private var actions: some View {
-        if isInLibrary {
+        switch mode {
+        case .library:
             actionPill(
                 symbol: "trash",
                 label: "Aus Bibliothek entfernen",
@@ -173,7 +198,17 @@ struct LibraryDetailView: View {
                 showDeleteConfirm = true
             }
             .padding(.top, Theme.Spacing.sm)
-        } else {
+        case .watchlist:
+            HStack(spacing: Theme.Spacing.sm) {
+                actionPill(symbol: "eye.fill", label: "Gesehen", kind: .accent) {
+                    showRatingOverlay = true
+                }
+                actionPill(symbol: "trash", label: "Aus Watchlist", kind: .danger) {
+                    showDeleteConfirm = true
+                }
+            }
+            .padding(.top, Theme.Spacing.sm)
+        case .discover:
             HStack(spacing: Theme.Spacing.sm) {
                 actionPill(symbol: "star.fill", label: "Bewerten", kind: .accent) {
                     showRatingOverlay = true
@@ -268,27 +303,36 @@ struct LibraryDetailView: View {
 
     // MARK: - Discover-rating commit
 
-    private func saveDiscoverRating(_ value: Int?) {
-        let watched = LibraryItem(
-            tmdbId: item.tmdbId,
-            mediaType: item.mediaType,
-            title: item.title,
-            overview: item.overview,
-            year: item.year,
-            posterPath: item.posterPath,
-            genres: item.genres,
-            rating: value,
-            watched: true,
-            addedAt: Date()
-        )
-        // Optimistic UI: fade overlay out, pop back, save in background.
+    /// Both the discover-rating and the watchlist-promote-to-library paths
+    /// land here. The first writes a fresh LibraryItem with watched=true,
+    /// the second flips the existing item to watched and applies the rating.
+    private func commitRating(_ value: Int?) {
         withAnimation(.easeOut(duration: 0.25)) {
             showRatingOverlay = false
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
             dismiss()
         }
-        Task { await library.add(watched) }
+        switch mode {
+        case .watchlist:
+            Task { await library.markWatched(tmdbId: item.tmdbId, rating: value) }
+        case .discover, .library:
+            // .library shouldn't reach here (no rating overlay trigger), but
+            // we still add as a safety net.
+            let watched = LibraryItem(
+                tmdbId: item.tmdbId,
+                mediaType: item.mediaType,
+                title: item.title,
+                overview: item.overview,
+                year: item.year,
+                posterPath: item.posterPath,
+                genres: item.genres,
+                rating: value,
+                watched: true,
+                addedAt: Date()
+            )
+            Task { await library.add(watched) }
+        }
     }
 }
 
