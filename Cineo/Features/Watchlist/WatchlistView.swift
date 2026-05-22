@@ -227,11 +227,7 @@ private struct WatchlistRow: View {
             }
             .padding(.trailing, Theme.Spacing.xs)
         }
-        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-                .strokeBorder(Theme.Colors.borderSubtle, lineWidth: 0.5)
-        )
+        .cineoRow(padding: 0)
     }
 }
 
@@ -275,11 +271,6 @@ private struct WatchlistSearchRow: View {
             .buttonStyle(CineoPressStyle(scale: 0.9))
             .disabled(isInLibrary)
         }
-        .padding(Theme.Spacing.sm)
-        .background(Theme.Colors.surface, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-                .strokeBorder(Theme.Colors.borderSubtle, lineWidth: 0.5)
-        )
+        .cineoRow(padding: Theme.Spacing.sm)
     }
 }

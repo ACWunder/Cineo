@@ -144,7 +144,7 @@ private struct SeriesRow: View {
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(Theme.Colors.textTertiary)
         }
-        .cineoCard(padding: Theme.Spacing.sm)
+        .cineoRow(padding: Theme.Spacing.sm)
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
     }

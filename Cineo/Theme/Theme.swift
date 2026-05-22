@@ -189,6 +189,29 @@ extension View {
             )
     }
 
+    /// Quieter row style — deeper than the standard card, used for list rows
+    /// in Watchlist + Seasons where the cards otherwise read as grey panels.
+    func cineoRow(padding: CGFloat = Theme.Spacing.sm,
+                  radius: CGFloat = Theme.Radius.card) -> some View {
+        self
+            .padding(padding)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(hex: 0x0E0F15),
+                        Color(hex: 0x090A10)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ),
+                in: RoundedRectangle(cornerRadius: radius, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.04), lineWidth: 0.5)
+            )
+    }
+
     /// Adds a glossy sheen on top of a primary gold surface.
     func goldSheen(corner: CGFloat) -> some View {
         self.overlay(
