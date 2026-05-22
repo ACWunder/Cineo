@@ -123,6 +123,8 @@ private struct SeriesRow: View {
                         Text(formatDate(date))
                             .foregroundStyle(Theme.Colors.textPrimary)
                             .font(Theme.Typography.callout.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
                     if let s = next.seasonNumber, let e = next.episodeNumber {
                         Text(String(format: "S%02d · E%02d%@", s, e, next.name.map { " · \($0)" } ?? ""))
@@ -136,20 +138,21 @@ private struct SeriesRow: View {
                         .foregroundStyle(Theme.Colors.textTertiary)
                 }
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
+
             Image(systemName: "chevron.right")
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(Theme.Colors.textTertiary)
         }
         .cineoCard(padding: Theme.Spacing.sm)
+        .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
     }
 
     private func formatDate(_ date: Date) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "de_DE")
-        f.dateStyle = .full
-        f.timeStyle = .none
+        f.setLocalizedDateFormatFromTemplate("EEE d. MMM yyyy") // Do. 15. Jan. 2026
         return f.string(from: date)
     }
 }
