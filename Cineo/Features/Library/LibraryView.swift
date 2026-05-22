@@ -355,6 +355,11 @@ private struct LibraryGridCell: View {
             .frame(maxWidth: .infinity)
             .frame(height: 14)
         }
+        // Pin the cell's content to the top of its grid slot. Without this,
+        // a row where one cell has a 2-line title and the other has a 1-line
+        // title vertically centers the shorter cell, making it look like
+        // the poster sinks.
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 }
 
