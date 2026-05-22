@@ -355,15 +355,11 @@ struct DiscoverView: View {
     // MARK: - Haptics
 
     private func hapticEdge() {
-#if canImport(UIKit)
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-#endif
+        HapticEngine.shared.edge()
     }
 
     private func hapticConfirm() {
-#if canImport(UIKit)
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-#endif
+        HapticEngine.shared.confirm()
     }
 
     // MARK: - Data

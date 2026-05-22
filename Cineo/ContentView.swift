@@ -17,5 +17,12 @@ struct ContentView: View {
         }
         .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
+        .task {
+            // First-launch warm-up: avoid the ~200ms haptic-engine cold start
+            // and the ~2-3s keyboard-subsystem cold start the user would
+            // otherwise hit on the first swipe / first search tap.
+            HapticEngine.shared.prepare()
+            KeyboardWarmer.warm()
+        }
     }
 }
