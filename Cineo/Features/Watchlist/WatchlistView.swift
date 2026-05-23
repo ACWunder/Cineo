@@ -171,7 +171,6 @@ struct WatchlistView: View {
             mediaTypeMenu
             Spacer(minLength: 0)
         }
-        .animation(nil, value: mediaFilter)
     }
 
     private var mediaTypeMenu: some View {
@@ -179,30 +178,20 @@ struct WatchlistView: View {
         return Menu {
             ForEach(MediaFilter.allCases) { option in
                 Button {
-                    DispatchQueue.main.async {
-                        var transaction = Transaction()
-                        transaction.disablesAnimations = true
-                        withTransaction(transaction) {
-                            mediaFilter = option
-                        }
-                    }
+                    mediaFilter = option
                 } label: {
                     Label(option.rawValue,
                           systemImage: mediaFilter == option ? "checkmark" : "")
                 }
             }
         } label: {
-            filterPillLabel(
+            FilterPill(
                 icon: "film.stack",
                 text: mediaFilter == .all ? "Typ" : mediaFilter.rawValue,
-                isActive: isActive
+                isActive: isActive,
+                minWidth: 92
             )
         }
-    }
-
-    private func filterPillLabel(icon: String, text: String, isActive: Bool) -> some View {
-        FilterPill(icon: icon, text: text, isActive: isActive)
-            .id("\(icon)|\(text)|\(isActive)")
     }
 
     private func performSearch() async {

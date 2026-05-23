@@ -2,19 +2,16 @@ import SwiftUI
 
 /// Filter pill used in Library / Discover / Watchlist filter strips.
 ///
-/// The label can change between very different widths (e.g. "Typ" → "Filme")
-/// when a value is picked. To avoid the half-frame where the new text is
-/// drawn into the *old* capsule and gets clipped at the edges, callers
-/// give this view an `.id(...)` that includes the visible text — SwiftUI
-/// then rebuilds the pill from scratch on every label change instead of
-/// trying to animate the resize. Inside the pill itself nothing animates:
-/// `.transaction { $0.animation = nil }` strips any inherited animation,
-/// `.fixedSize(horizontal:true)` lets the Text claim its real width, and
-/// `.clipShape(Capsule())` guarantees the rounded shape even mid-render.
+/// Callers pass a `minWidth` sized for the pill's widest possible label
+/// (e.g. "Bewertung", "Serien", "Genre · 99"). That way the pill never
+/// has to grow when the visible label changes — the text just swaps
+/// inside a stable capsule, so there's no frame animation that could
+/// briefly draw the new text into the old narrower bounds.
 struct FilterPill: View {
     let icon: String
     let text: String
     let isActive: Bool
+    let minWidth: CGFloat
 
     var body: some View {
         HStack(spacing: 4) {
@@ -23,7 +20,6 @@ struct FilterPill: View {
             Text(text)
                 .font(Theme.Typography.caption.weight(.semibold))
                 .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
             Image(systemName: "chevron.down")
                 .font(.system(size: 8, weight: .bold, design: .rounded))
                 .opacity(0.7)
@@ -31,6 +27,7 @@ struct FilterPill: View {
         .foregroundStyle(isActive ? Color(hex: 0x2A1A05) : Theme.Colors.textPrimary)
         .padding(.horizontal, Theme.Spacing.sm)
         .padding(.vertical, 6)
+        .frame(minWidth: minWidth)
         .background(
             ZStack {
                 Capsule().fill(Theme.Colors.surfaceElevated)
@@ -50,11 +47,9 @@ struct FilterPill: View {
                 lineWidth: 0.5
             )
         )
-        .clipShape(Capsule())
         .shadow(
             color: isActive ? Theme.Colors.accentGlow.opacity(0.55) : .clear,
             radius: 10, y: 4
         )
-        .transaction { $0.animation = nil }
     }
 }

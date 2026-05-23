@@ -273,14 +273,6 @@ struct LibraryView: View {
             genreMenu
         }
         .frame(maxWidth: .infinity, alignment: .center)
-        // Filter changes resize one pill, which moves all the others
-        // (the HStack is centered). Without explicit nil animations
-        // SwiftUI tweens those positions and the new label is briefly
-        // drawn into the old pill's smaller frame, looking clipped.
-        .animation(nil, value: viewModel.sort)
-        .animation(nil, value: viewModel.mediaType)
-        .animation(nil, value: viewModel.minRating)
-        .animation(nil, value: viewModel.selectedGenres)
     }
 
     private var sortMenu: some View {
@@ -288,7 +280,7 @@ struct LibraryView: View {
         return Menu {
             ForEach(LibraryViewModel.Sort.allCases) { sort in
                 Button {
-                    applyFilterChange { vm.sort = sort }
+                    vm.sort = sort
                 } label: {
                     Label(sort.rawValue,
                           systemImage: vm.sort == sort ? "checkmark" : sort.symbol)
@@ -319,17 +311,18 @@ struct LibraryView: View {
         return Menu {
             ForEach(LibraryViewModel.MediaTypeFilter.allCases) { option in
                 Button {
-                    applyFilterChange { vm.mediaType = option }
+                    vm.mediaType = option
                 } label: {
                     Label(option.rawValue,
                           systemImage: vm.mediaType == option ? "checkmark" : "")
                 }
             }
         } label: {
-            filterPillLabel(
+            FilterPill(
                 icon: "film.stack",
                 text: vm.mediaType == .all ? "Typ" : vm.mediaType.rawValue,
-                isActive: isActive
+                isActive: isActive,
+                minWidth: 92
             )
         }
     }
@@ -339,24 +332,25 @@ struct LibraryView: View {
         let isActive = vm.minRating > 0
         return Menu {
             Button {
-                applyFilterChange { vm.minRating = 0 }
+                vm.minRating = 0
             } label: {
                 Label("Alle Bewertungen", systemImage: vm.minRating == 0 ? "checkmark" : "")
             }
             Divider()
             ForEach(Array((1...5).reversed()), id: \.self) { stars in
                 Button {
-                    applyFilterChange { vm.minRating = stars }
+                    vm.minRating = stars
                 } label: {
                     Label("ab \(stars) \(stars == 1 ? "Stern" : "Sternen")",
                           systemImage: vm.minRating == stars ? "checkmark" : "")
                 }
             }
         } label: {
-            filterPillLabel(
+            FilterPill(
                 icon: "star.fill",
                 text: isActive ? "ab \(vm.minRating)\u{2009}\u{2605}" : "Bewertung",
-                isActive: isActive
+                isActive: isActive,
+                minWidth: 124
             )
         }
     }
@@ -368,18 +362,16 @@ struct LibraryView: View {
         return Menu {
             if isActive {
                 Button("Alle Genres zurücksetzen", role: .destructive) {
-                    applyFilterChange { vm.selectedGenres = [] }
+                    vm.selectedGenres = []
                 }
                 Divider()
             }
             ForEach(genres, id: \.self) { genre in
                 Button {
-                    applyFilterChange {
-                        if vm.selectedGenres.contains(genre) {
-                            vm.selectedGenres.remove(genre)
-                        } else {
-                            vm.selectedGenres.insert(genre)
-                        }
+                    if vm.selectedGenres.contains(genre) {
+                        vm.selectedGenres.remove(genre)
+                    } else {
+                        vm.selectedGenres.insert(genre)
                     }
                 } label: {
                     Label(genre, systemImage: vm.selectedGenres.contains(genre) ? "checkmark" : "")
@@ -388,28 +380,14 @@ struct LibraryView: View {
             }
         } label: {
             let count = vm.selectedGenres.count
-            filterPillLabel(
+            FilterPill(
                 icon: "tag.fill",
                 text: isActive ? "Genre · \(count)" : "Genre",
-                isActive: isActive
+                isActive: isActive,
+                minWidth: 112
             )
         }
         .disabled(genres.isEmpty)
-    }
-
-    private func filterPillLabel(icon: String, text: String, isActive: Bool) -> some View {
-        // Delegate to a fully isolated subview keyed by its content so the
-        // pill rebuilds from scratch every time the label changes — no
-        // animation, no in-place resize, no half-frame where the new
-        // text is wider than the old capsule.
-        FilterPill(icon: icon, text: text, isActive: isActive)
-            .id("\(icon)|\(text)|\(isActive)")
-    }
-
-    /// Defer filter mutations to the next runloop tick so iOS can finish
-    /// the Menu's dismissal animation before the SwiftUI rebuild kicks in.
-    private func applyFilterChange(_ change: @escaping () -> Void) {
-        DispatchQueue.main.async(execute: change)
     }
 
     /// Unique sorted genres harvested from the user's watched library — feeds

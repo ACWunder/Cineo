@@ -97,7 +97,6 @@ struct DiscoverView: View {
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.top, Theme.Spacing.xs)
         .padding(.bottom, Theme.Spacing.sm)
-        .animation(nil, value: viewModel.filter)
     }
 
     private var profileButton: some View {
@@ -173,35 +172,20 @@ struct DiscoverView: View {
         return Menu {
             ForEach(DiscoverViewModel.MediaFilter.allCases) { option in
                 Button {
-                    // Defer the mutation past the Menu's dismiss frame and
-                    // disable SwiftUI's diff animation so the grid swap
-                    // doesn't compete with the closing menu for main-thread
-                    // time. Selection feels instant; new posters fade in
-                    // as their decode finishes.
-                    DispatchQueue.main.async {
-                        var transaction = Transaction()
-                        transaction.disablesAnimations = true
-                        withTransaction(transaction) {
-                            vm.filter = option
-                        }
-                    }
+                    vm.filter = option
                 } label: {
                     Label(option.label,
                           systemImage: vm.filter == option ? "checkmark" : "")
                 }
             }
         } label: {
-            filterPillLabel(
+            FilterPill(
                 icon: "film.stack",
                 text: vm.filter == .all ? "Typ" : vm.filter.label,
-                isActive: isActive
+                isActive: isActive,
+                minWidth: 92
             )
         }
-    }
-
-    private func filterPillLabel(icon: String, text: String, isActive: Bool) -> some View {
-        FilterPill(icon: icon, text: text, isActive: isActive)
-            .id("\(icon)|\(text)|\(isActive)")
     }
 
     @ViewBuilder
