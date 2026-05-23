@@ -189,7 +189,7 @@ struct WatchlistView: View {
                 icon: "film.stack",
                 text: mediaFilter == .all ? "Typ" : mediaFilter.rawValue,
                 isActive: isActive,
-                minWidth: 92
+                minWidth: 78
             )
         }
     }

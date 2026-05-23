@@ -322,7 +322,7 @@ struct LibraryView: View {
                 icon: "film.stack",
                 text: vm.mediaType == .all ? "Typ" : vm.mediaType.rawValue,
                 isActive: isActive,
-                minWidth: 92
+                minWidth: 78
             )
         }
     }
@@ -350,7 +350,7 @@ struct LibraryView: View {
                 icon: "star.fill",
                 text: isActive ? "ab \(vm.minRating)\u{2009}\u{2605}" : "Bewertung",
                 isActive: isActive,
-                minWidth: 124
+                minWidth: 104
             )
         }
     }
@@ -384,7 +384,7 @@ struct LibraryView: View {
                 icon: "tag.fill",
                 text: isActive ? "Genre · \(count)" : "Genre",
                 isActive: isActive,
-                minWidth: 112
+                minWidth: 98
             )
         }
         .disabled(genres.isEmpty)

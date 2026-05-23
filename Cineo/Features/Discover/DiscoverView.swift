@@ -183,7 +183,7 @@ struct DiscoverView: View {
                 icon: "film.stack",
                 text: vm.filter == .all ? "Typ" : vm.filter.label,
                 isActive: isActive,
-                minWidth: 92
+                minWidth: 78
             )
         }
     }
