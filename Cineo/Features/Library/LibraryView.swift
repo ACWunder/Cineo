@@ -381,18 +381,19 @@ struct LibraryView: View {
     }
 
     private func filterPillLabel(icon: String, text: String, isActive: Bool) -> some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
             Text(text)
-                .font(Theme.Typography.footnote.weight(.semibold))
+                .font(Theme.Typography.caption.weight(.semibold))
+                .lineLimit(1)
             Image(systemName: "chevron.down")
-                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .font(.system(size: 8, weight: .bold, design: .rounded))
                 .opacity(0.7)
         }
         .foregroundStyle(isActive ? Color(hex: 0x2A1A05) : Theme.Colors.textPrimary)
         .padding(.horizontal, Theme.Spacing.sm)
-        .padding(.vertical, 7)
+        .padding(.vertical, 6)
         .background(
             ZStack {
                 if isActive {
