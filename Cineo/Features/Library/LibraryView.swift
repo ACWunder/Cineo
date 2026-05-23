@@ -19,10 +19,14 @@ struct LibraryView: View {
     /// Approximate height of the search bar including its top padding.
     private let searchBarHeight: CGFloat = 38 + Theme.Spacing.xs
 
-    /// 0 = search bar fully visible above the filter strip;
-    /// -searchBarHeight = search bar fully scrolled out of view, filter
-    /// strip pinned to the top edge.
-    @State private var searchBarOffset: CGFloat = 0
+    /// Total height that the floating header (search bar + filter strip)
+    /// occupies above the scrollable content. Used both as the ScrollView's
+    /// reserved top spacer and as the maximum slide distance.
+    private var headerHeight: CGFloat { searchBarHeight + filterStripHeight }
+
+    /// 0 = header fully visible; -headerHeight = header fully scrolled
+    /// out of view. Drives both the slide and the fade.
+    @State private var headerOffset: CGFloat = 0
 
     private let columns = [GridItem(.adaptive(minimum: 168), spacing: Theme.Spacing.md)]
 
@@ -86,7 +90,7 @@ struct LibraryView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         // Reserved space behind the overlay header.
-                        Color.clear.frame(height: searchBarHeight + filterStripHeight)
+                        Color.clear.frame(height: headerHeight)
 
                         if watchedItems.isEmpty {
                             filterEmptyState
@@ -107,27 +111,27 @@ struct LibraryView: View {
                 .onScrollGeometryChange(for: CGFloat.self) { proxy in
                     proxy.contentOffset.y
                 } action: { oldValue, newValue in
-                    updateSearchBarOffset(old: oldValue, new: newValue)
+                    updateHeaderOffset(old: oldValue, new: newValue)
                 }
 
                 VStack(spacing: 0) {
                     floatingSearchBar
-                        .opacity(searchBarOpacity)
                     filterStrip
                         .padding(.horizontal, Theme.Spacing.md)
                         .frame(height: filterStripHeight)
                 }
-                .offset(y: searchBarOffset)
+                .opacity(headerOpacity)
+                .offset(y: headerOffset)
             }
         }
     }
 
-    /// Linear 1 → 0 as the search bar slides off-screen. Fully transparent
-    /// well before the slide finishes so it actually disappears instead of
-    /// staying a faint translucent line.
-    private var searchBarOpacity: Double {
-        let progress = max(0, min(1, -searchBarOffset / searchBarHeight))
-        return max(0, 1 - progress * 1.6)
+    /// Linear 1 → 0 as the entire header slides off-screen. Slightly faster
+    /// than the slide so search + chips are fully invisible well before
+    /// the translation finishes.
+    private var headerOpacity: Double {
+        let progress = max(0, min(1, -headerOffset / headerHeight))
+        return max(0, 1 - progress * 1.4)
     }
 
     /// The same search field as before, but exposed via the overlay path
@@ -142,17 +146,17 @@ struct LibraryView: View {
         .padding(.top, Theme.Spacing.xs)
     }
 
-    /// Translate the search bar 1:1 with the user's scroll, clamped so it
-    /// only ever hides as far as its own height. The filter strip travels
-    /// with it (they're in the same VStack) so the chips slide up to take
-    /// the top spot when the bar is fully tucked away.
-    private func updateSearchBarOffset(old: CGFloat, new: CGFloat) {
+    /// Translate the whole header (search bar + filter strip) 1:1 with
+    /// the user's scroll. Down-scroll hides both; up-scroll brings both
+    /// back. The ScrollView's frame stays constant so there's no layout
+    /// feedback loop.
+    private func updateHeaderOffset(old: CGFloat, new: CGFloat) {
         guard new >= 0 else { return }
         let delta = new - old
-        let updated = searchBarOffset - delta
-        let clamped = max(-searchBarHeight, min(0, updated))
-        if abs(clamped - searchBarOffset) > 0.25 {
-            searchBarOffset = clamped
+        let updated = headerOffset - delta
+        let clamped = max(-headerHeight, min(0, updated))
+        if abs(clamped - headerOffset) > 0.25 {
+            headerOffset = clamped
         }
     }
 
