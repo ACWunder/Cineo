@@ -485,7 +485,7 @@ private struct LibraryGridCell: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 14)
-            .padding(.top, Theme.Spacing.sm)
+            .padding(.top, Theme.Spacing.xxs)
         }
     }
 }
