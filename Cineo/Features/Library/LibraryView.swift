@@ -238,13 +238,31 @@ struct LibraryView: View {
         defer { searchIsLoading = false }
         do {
             let res = try await TMDBClient.shared.searchMulti(query: q)
+            // Another keystroke may have cancelled us while the request
+            // was in flight — drop the now-stale result instead of
+            // overwriting the UI for the newer query.
+            if Task.isCancelled { return }
             searchResults = res
             searchError = nil
-        } catch let err as TMDBError {
-            searchError = err.localizedDescription
-        } catch let err {
-            searchError = err.localizedDescription
+        } catch {
+            // Don't surface cancellation as a "Netzwerkfehler" flash —
+            // it just means the user typed another character and a
+            // fresh search is already on its way. URLSession's cancel
+            // gets wrapped twice (URLError → TMDBError.transport), so
+            // we have to peel both layers.
+            if Task.isCancelled { return }
+            if isCancellation(error) { return }
+            searchError = error.localizedDescription
         }
+    }
+
+    private func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let urlError = error as? URLError, urlError.code == .cancelled { return true }
+        if case let TMDBError.transport(inner) = error {
+            if let urlError = inner as? URLError, urlError.code == .cancelled { return true }
+        }
+        return false
     }
 
     // MARK: - Filter strip

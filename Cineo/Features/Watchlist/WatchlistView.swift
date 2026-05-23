@@ -205,13 +205,25 @@ struct WatchlistView: View {
         defer { searchIsLoading = false }
         do {
             let res = try await TMDBClient.shared.searchMulti(query: q)
+            if Task.isCancelled { return }
             searchResults = res
             searchError = nil
-        } catch let err as TMDBError {
-            searchError = err.localizedDescription
-        } catch let err {
-            searchError = err.localizedDescription
+        } catch {
+            // A new keystroke cancelled this request — don't flash the
+            // user a "Netzwerkfehler" while the next search is loading.
+            if Task.isCancelled { return }
+            if isCancellation(error) { return }
+            searchError = error.localizedDescription
         }
+    }
+
+    private func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let urlError = error as? URLError, urlError.code == .cancelled { return true }
+        if case let TMDBError.transport(inner) = error {
+            if let urlError = inner as? URLError, urlError.code == .cancelled { return true }
+        }
+        return false
     }
 }
 
