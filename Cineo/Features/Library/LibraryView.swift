@@ -13,6 +13,11 @@ struct LibraryView: View {
 
     @FocusState private var searchFocused: Bool
     @State private var showFilters: Bool = true
+    /// Time of the last filter-strip toggle. Toggling shifts the ScrollView's
+    /// layout, which re-fires onScrollGeometryChange with bouncy offsets —
+    /// we lock further toggles out for a short window so it doesn't flicker
+    /// during a fast initial swipe.
+    @State private var lastFilterToggle: Date = .distantPast
 
     private let columns = [GridItem(.adaptive(minimum: 168), spacing: Theme.Spacing.md)]
 
@@ -98,7 +103,6 @@ struct LibraryView: View {
                     handleScroll(old: oldValue, new: newValue)
                 }
             }
-            .animation(.easeOut(duration: 0.22), value: showFilters)
         }
     }
 
@@ -107,15 +111,27 @@ struct LibraryView: View {
     /// all the way to the top to change a filter.
     private func handleScroll(old: CGFloat, new: CGFloat) {
         // Near the very top → always show.
-        if new < 30 {
-            if !showFilters { showFilters = true }
+        if new < 40 {
+            if !showFilters {
+                withAnimation(.easeOut(duration: 0.24)) { showFilters = true }
+                lastFilterToggle = Date()
+            }
             return
         }
+
+        // Lock out toggles for 0.4s after the last one so the layout
+        // settlement (which re-fires onScrollGeometryChange) can't bounce
+        // the strip back and forth.
+        guard Date().timeIntervalSince(lastFilterToggle) > 0.4 else { return }
+
         let delta = new - old
-        if delta > 6, showFilters {
-            showFilters = false
-        } else if delta < -6, !showFilters {
-            showFilters = true
+        // Generous thresholds — small jitters in offset shouldn't toggle.
+        if delta > 14, showFilters {
+            withAnimation(.easeOut(duration: 0.24)) { showFilters = false }
+            lastFilterToggle = Date()
+        } else if delta < -14, !showFilters {
+            withAnimation(.easeOut(duration: 0.24)) { showFilters = true }
+            lastFilterToggle = Date()
         }
     }
 
