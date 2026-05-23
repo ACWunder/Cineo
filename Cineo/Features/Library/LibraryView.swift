@@ -12,6 +12,7 @@ struct LibraryView: View {
     @State private var pendingAdd: TMDBSearchMultiResult?
 
     @FocusState private var searchFocused: Bool
+    @State private var showFilters: Bool = true
 
     private let columns = [GridItem(.adaptive(minimum: 168), spacing: Theme.Spacing.md)]
 
@@ -66,26 +67,55 @@ struct LibraryView: View {
                 message: "Markiere Filme oder Serien als gesehen — sie landen dann hier mit deiner Bewertung."
             )
         } else {
-            ScrollView {
-                filterStrip
-                    .padding(.top, Theme.Spacing.xs)
-                    .padding(.bottom, Theme.Spacing.sm)
+            VStack(spacing: 0) {
+                if showFilters {
+                    filterStrip
+                        .padding(.top, Theme.Spacing.xs)
+                        .padding(.bottom, Theme.Spacing.sm)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
 
-                if watchedItems.isEmpty {
-                    filterEmptyState
-                } else {
-                    LazyVGrid(columns: columns, spacing: Theme.Spacing.md) {
-                        ForEach(watchedItems) { item in
-                            NavigationLink(value: item) {
-                                LibraryGridCell(item: item)
+                ScrollView {
+                    if watchedItems.isEmpty {
+                        filterEmptyState
+                    } else {
+                        LazyVGrid(columns: columns, spacing: Theme.Spacing.md) {
+                            ForEach(watchedItems) { item in
+                                NavigationLink(value: item) {
+                                    LibraryGridCell(item: item)
+                                }
+                                .buttonStyle(CineoPressStyle(scale: 0.97))
                             }
-                            .buttonStyle(CineoPressStyle(scale: 0.97))
                         }
+                        .padding(.horizontal, Theme.Spacing.md)
+                        .padding(.top, Theme.Spacing.xs)
+                        .padding(.bottom, Theme.Spacing.lg)
                     }
-                    .padding(.horizontal, Theme.Spacing.md)
-                    .padding(.bottom, Theme.Spacing.lg)
+                }
+                .onScrollGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.contentOffset.y
+                } action: { oldValue, newValue in
+                    handleScroll(old: oldValue, new: newValue)
                 }
             }
+            .animation(.easeOut(duration: 0.22), value: showFilters)
+        }
+    }
+
+    /// Hide the filter strip while scrolling down; reveal it again on any
+    /// upward gesture, even mid-grid — so the user doesn't have to scroll
+    /// all the way to the top to change a filter.
+    private func handleScroll(old: CGFloat, new: CGFloat) {
+        // Near the very top → always show.
+        if new < 30 {
+            if !showFilters { showFilters = true }
+            return
+        }
+        let delta = new - old
+        if delta > 6, showFilters {
+            showFilters = false
+        } else if delta < -6, !showFilters {
+            showFilters = true
         }
     }
 
