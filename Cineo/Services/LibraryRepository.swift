@@ -37,6 +37,24 @@ final class LibraryRepository {
                 guard let snapshot else { return }
                 self.items = snapshot.documents.compactMap { Self.decode($0.data()) }
                     .sorted(by: { $0.addedAt > $1.addedAt })
+                // Warm the URL cache so the first filter switch (which
+                // brings previously off-screen cells into view) doesn't
+                // pay the network/decode tax. Idempotent against
+                // already-cached entries.
+                self.prefetchPosters()
+            }
+        }
+    }
+
+    /// Asks URLSession for every poster in the library (and the AsyncImage-
+    /// size we actually render at) on a background task. Cached entries are
+    /// returned instantly so this is cheap on re-runs.
+    private func prefetchPosters() {
+        let urls = items.compactMap { TMDB.posterURL($0.posterPath, size: "w342") }
+        guard !urls.isEmpty else { return }
+        Task.detached(priority: .utility) {
+            for url in urls {
+                _ = try? await URLSession.shared.data(from: url)
             }
         }
     }
