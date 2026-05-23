@@ -213,15 +213,15 @@ struct DiscoverView: View {
         .padding(.vertical, 7)
         .background(
             ZStack {
-                if isActive {
-                    Capsule().fill(Theme.Colors.accentGradient)
-                    Capsule()
-                        .fill(Theme.Colors.accentSheen)
-                        .blendMode(.plusLighter)
-                        .allowsHitTesting(false)
-                } else {
-                    Capsule().fill(.ultraThinMaterial.opacity(0.4))
-                }
+                Capsule().fill(.ultraThinMaterial.opacity(0.4))
+                    .opacity(isActive ? 0 : 1)
+                Capsule().fill(Theme.Colors.accentGradient)
+                    .opacity(isActive ? 1 : 0)
+                Capsule()
+                    .fill(Theme.Colors.accentSheen)
+                    .blendMode(.plusLighter)
+                    .opacity(isActive ? 1 : 0)
+                    .allowsHitTesting(false)
             }
         )
         .overlay(
@@ -230,6 +230,7 @@ struct DiscoverView: View {
                 lineWidth: 0.5
             )
         )
+        .clipShape(Capsule())
         .shadow(
             color: isActive ? Theme.Colors.accentGlow.opacity(0.55) : .clear,
             radius: 10, y: 4

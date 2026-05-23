@@ -404,16 +404,20 @@ struct LibraryView: View {
         .padding(.horizontal, Theme.Spacing.sm)
         .padding(.vertical, 6)
         .background(
+            // Always rendered as a Capsule, both states cross-faded via
+            // opacity instead of swapped through an if/else. Without this
+            // the pill briefly rendered as a rectangle while SwiftUI
+            // rebuilt the background subtree on each toggle.
             ZStack {
-                if isActive {
-                    Capsule().fill(Theme.Colors.accentGradient)
-                    Capsule()
-                        .fill(Theme.Colors.accentSheen)
-                        .blendMode(.plusLighter)
-                        .allowsHitTesting(false)
-                } else {
-                    Capsule().fill(Theme.Colors.surfaceElevated)
-                }
+                Capsule().fill(Theme.Colors.surfaceElevated)
+                    .opacity(isActive ? 0 : 1)
+                Capsule().fill(Theme.Colors.accentGradient)
+                    .opacity(isActive ? 1 : 0)
+                Capsule()
+                    .fill(Theme.Colors.accentSheen)
+                    .blendMode(.plusLighter)
+                    .opacity(isActive ? 1 : 0)
+                    .allowsHitTesting(false)
             }
         )
         .overlay(
@@ -422,6 +426,7 @@ struct LibraryView: View {
                 lineWidth: 0.5
             )
         )
+        .clipShape(Capsule())
         .shadow(
             color: isActive ? Theme.Colors.accentGlow.opacity(0.55) : .clear,
             radius: 10, y: 4
