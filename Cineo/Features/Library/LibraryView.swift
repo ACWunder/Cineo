@@ -2,7 +2,6 @@ import SwiftUI
 
 struct LibraryView: View {
     @Environment(LibraryRepository.self) private var library
-    @Environment(AuthService.self) private var auth
     @State private var viewModel = LibraryViewModel()
 
     // Inline TMDB search
@@ -11,8 +10,6 @@ struct LibraryView: View {
     @State private var searchIsLoading: Bool = false
     @State private var searchError: String?
     @State private var pendingAdd: TMDBSearchMultiResult?
-
-    @State private var showLogoutConfirm: Bool = false
 
     @FocusState private var searchFocused: Bool
 
@@ -30,12 +27,7 @@ struct LibraryView: View {
                         libraryGrid
                     }
                 }
-                if showLogoutConfirm {
-                    logoutDropdown
-                        .zIndex(99)
-                }
             }
-            .animation(Theme.Motion.pop, value: showLogoutConfirm)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: LibraryItem.self) { item in
                 LibraryDetailView(item: item)
@@ -137,88 +129,14 @@ struct LibraryView: View {
     private var isSearching: Bool { !trimmedQuery.isEmpty }
 
     private var searchBar: some View {
-        HStack(spacing: Theme.Spacing.xs) {
-            CineoSearchField(
-                text: $searchQuery,
-                placeholder: "Film oder Serie hinzufügen …",
-                focus: $searchFocused
-            )
-            profileButton
-        }
+        CineoSearchField(
+            text: $searchQuery,
+            placeholder: "Film oder Serie hinzufügen …",
+            focus: $searchFocused
+        )
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.top, Theme.Spacing.xs)
         .padding(.bottom, Theme.Spacing.sm)
-    }
-
-    private var profileButton: some View {
-        Button {
-            showLogoutConfirm = true
-        } label: {
-            Image(systemName: "person.crop.circle")
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
-                .foregroundStyle(Theme.Colors.accentLight)
-                .frame(width: 34, height: 34)
-                .background(.ultraThinMaterial.opacity(0.5), in: Circle())
-                .overlay(
-                    Circle().stroke(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.14), Color.white.opacity(0.03)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 0.5
-                    )
-                )
-        }
-        .buttonStyle(CineoPressStyle(scale: 0.92))
-        .accessibilityLabel("Profil")
-    }
-
-    // MARK: - Logout dropdown
-
-    private var logoutDropdown: some View {
-        ZStack(alignment: .topTrailing) {
-            // Transparent tap-outside catcher
-            Color.clear
-                .ignoresSafeArea()
-                .contentShape(Rectangle())
-                .onTapGesture { showLogoutConfirm = false }
-
-            Button {
-                showLogoutConfirm = false
-                // Let the dropdown finish scaling out before auth flips.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                    auth.signOut()
-                }
-            } label: {
-                HStack(spacing: Theme.Spacing.xs) {
-                    Image(systemName: "rectangle.portrait.and.arrow.right")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    Text("Abmelden")
-                        .font(Theme.Typography.callout.weight(.semibold))
-                }
-                .foregroundStyle(Theme.Colors.textPrimary)
-                .padding(.horizontal, Theme.Spacing.md)
-                .padding(.vertical, 10)
-                .background(.ultraThinMaterial.opacity(0.9), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.16), Color.white.opacity(0.03)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: 0.5
-                        )
-                )
-                .shadow(color: Color.black.opacity(0.45), radius: 16, y: 8)
-            }
-            .buttonStyle(CineoPressStyle(scale: 0.94))
-            .padding(.top, 56)
-            .padding(.trailing, Theme.Spacing.md)
-            .transition(.scale(scale: 0.85, anchor: .topTrailing).combined(with: .opacity))
-        }
     }
 
     @ViewBuilder

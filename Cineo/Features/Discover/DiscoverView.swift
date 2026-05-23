@@ -7,6 +7,7 @@ struct DiscoverView: View {
 
     @Environment(LibraryRepository.self) private var library
     @Environment(DismissedRepository.self) private var dismissed
+    @Environment(AuthService.self) private var auth
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var viewModel = DiscoverViewModel()
@@ -16,6 +17,7 @@ struct DiscoverView: View {
     @State private var didCrossThreshold: Bool = false
     @State private var flyingOut: Bool = false
     @State private var path = NavigationPath()
+    @State private var showLogoutConfirm: Bool = false
 
     /// A snapshot of the card the user just dismissed, while it animates
     /// off-screen independently from the stack. Popping the stack runs
@@ -49,7 +51,12 @@ struct DiscoverView: View {
                     .zIndex(99)
                     .animation(reduceMotion ? Theme.Motion.reduced : Theme.Motion.spring, value: ratingCandidate)
                 }
+                if showLogoutConfirm {
+                    logoutDropdown
+                        .zIndex(100)
+                }
             }
+            .animation(Theme.Motion.pop, value: showLogoutConfirm)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: LibraryItem.self) { item in
                 LibraryDetailView(item: item)
@@ -84,11 +91,79 @@ struct DiscoverView: View {
         HStack {
             mediaTypeMenu
             Spacer(minLength: 0)
+            profileButton
         }
         .frame(height: 40)
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.top, Theme.Spacing.xs)
         .padding(.bottom, Theme.Spacing.sm)
+    }
+
+    private var profileButton: some View {
+        Button {
+            showLogoutConfirm = true
+        } label: {
+            Image(systemName: "person.crop.circle")
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .foregroundStyle(Theme.Colors.accentLight)
+                .frame(width: 34, height: 34)
+                .background(.ultraThinMaterial.opacity(0.5), in: Circle())
+                .overlay(
+                    Circle().stroke(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.14), Color.white.opacity(0.03)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.5
+                    )
+                )
+        }
+        .buttonStyle(CineoPressStyle(scale: 0.92))
+        .accessibilityLabel("Profil")
+    }
+
+    private var logoutDropdown: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.clear
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { showLogoutConfirm = false }
+
+            Button {
+                showLogoutConfirm = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                    auth.signOut()
+                }
+            } label: {
+                HStack(spacing: Theme.Spacing.xs) {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    Text("Abmelden")
+                        .font(Theme.Typography.callout.weight(.semibold))
+                }
+                .foregroundStyle(Theme.Colors.textPrimary)
+                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial.opacity(0.9), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.16), Color.white.opacity(0.03)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 0.5
+                        )
+                )
+                .shadow(color: Color.black.opacity(0.45), radius: 16, y: 8)
+            }
+            .buttonStyle(CineoPressStyle(scale: 0.94))
+            .padding(.top, 56)
+            .padding(.trailing, Theme.Spacing.md)
+            .transition(.scale(scale: 0.85, anchor: .topTrailing).combined(with: .opacity))
+        }
     }
 
     private var mediaTypeMenu: some View {
