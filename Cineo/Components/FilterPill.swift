@@ -31,13 +31,13 @@ struct FilterPill: View {
                 .font(.system(size: 8, weight: .bold, design: .rounded))
                 .opacity(0.7)
         }
-        .foregroundStyle(isActive ? Color(hex: 0x2A1A05) : Theme.Colors.textPrimary)
+        .foregroundStyle(isActive ? Color(hex: 0x2A1A05) : Theme.Colors.accent)
         .padding(.horizontal, Theme.Spacing.sm)
         .padding(.vertical, 6)
         .frame(minWidth: minWidth)
         .background(
             ZStack {
-                Capsule().fill(Theme.Colors.surfaceElevated)
+                Capsule().fill(Theme.Colors.backgroundElevated)
                     .opacity(isActive ? 0 : 1)
                 Capsule().fill(Theme.Colors.accentGradient)
                     .opacity(isActive ? 1 : 0)

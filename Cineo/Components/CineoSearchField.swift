@@ -6,11 +6,18 @@ struct CineoSearchField: View {
     var placeholder: String = "Suchen …"
     var focus: FocusState<Bool>.Binding?
 
+    @FocusState private var internalFocused: Bool
+
+    private var isFocused: Bool {
+        focus?.wrappedValue ?? internalFocused
+    }
+
     var body: some View {
         HStack(spacing: Theme.Spacing.xs) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundStyle(Theme.Colors.textSecondary)
+                .foregroundStyle(isFocused ? Theme.Colors.accent : Theme.Colors.textSecondary)
+                .animation(.easeInOut(duration: 0.18), value: isFocused)
 
             field
 
@@ -26,8 +33,8 @@ struct CineoSearchField: View {
             }
         }
         .padding(.horizontal, Theme.Spacing.md)
-        .frame(height: 34)
-        .background(Theme.Colors.surfaceElevated, in: Capsule())
+        .frame(height: 44)
+        .background(Theme.Colors.backgroundElevated, in: Capsule())
         .overlay(
             Capsule().stroke(
                 LinearGradient(
@@ -48,6 +55,7 @@ struct CineoSearchField: View {
                 .modifier(SearchFieldStyle())
         } else {
             TextField(placeholder, text: $text)
+                .focused($internalFocused)
                 .modifier(SearchFieldStyle())
         }
     }
@@ -57,7 +65,8 @@ private struct SearchFieldStyle: ViewModifier {
     func body(content: Content) -> some View {
         content
             .font(Theme.Typography.callout)
-            .foregroundStyle(Theme.Colors.textPrimary)
+            .foregroundStyle(Theme.Colors.accent)
+            .tint(Theme.Colors.accent)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled(true)
             .submitLabel(.search)

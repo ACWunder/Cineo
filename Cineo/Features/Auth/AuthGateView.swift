@@ -19,7 +19,7 @@ struct AuthGateView: View {
                     .foregroundStyle(Theme.Colors.textPrimary)
                     .tracking(0.5)
 
-                Text("Dein schlanker Film- und Serien-Tracker.")
+                Text("Dein Film- und Serien-Tracker.")
                     .font(Theme.Typography.body)
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .multilineTextAlignment(.center)

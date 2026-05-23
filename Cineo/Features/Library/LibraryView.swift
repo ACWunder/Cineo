@@ -14,7 +14,7 @@ struct LibraryView: View {
     @FocusState private var searchFocused: Bool
 
     /// Heights of the two pieces of the floating header overlay.
-    private let searchBarHeight: CGFloat = 42  // xs(8) + field(34)
+    private let searchBarHeight: CGFloat = 52  // xs(8) + field(44)
     private let filterStripHeight: CGFloat = 48
     /// Total reserved space at the top of the scroll content when both
     /// pieces are visible (i.e. when not actively searching).
@@ -326,9 +326,9 @@ struct LibraryView: View {
         } label: {
             Image(systemName: "arrow.up.arrow.down")
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundStyle(Theme.Colors.accentLight)
+                .foregroundStyle(Theme.Colors.accent)
                 .frame(width: 34, height: 34)
-                .background(Theme.Colors.surfaceElevated, in: Circle())
+                .background(Theme.Colors.backgroundElevated, in: Circle())
                 .overlay(
                     Circle().stroke(
                         LinearGradient(

@@ -15,7 +15,7 @@ struct MainTabView: View {
             SeasonsView()
                 .tabItem { Label("Staffeln", systemImage: "calendar.badge.clock") }
         }
-        .tint(Theme.Colors.accentLight)
+        .tint(Theme.Colors.accent)
         .background(Theme.Colors.background.ignoresSafeArea())
     }
 }
