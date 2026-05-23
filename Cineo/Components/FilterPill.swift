@@ -3,10 +3,16 @@ import SwiftUI
 /// Filter pill used in Library / Discover / Watchlist filter strips.
 ///
 /// Callers pass a `minWidth` sized for the pill's widest possible label
-/// (e.g. "Bewertung", "Serien", "Genre · 99"). That way the pill never
-/// has to grow when the visible label changes — the text just swaps
-/// inside a stable capsule, so there's no frame animation that could
-/// briefly draw the new text into the old narrower bounds.
+/// (e.g. "Bewertung", "Serien", "Genre · 99"). That floor must be at
+/// least as large as the natural width of the widest text — otherwise
+/// switching to a wider label forces the pill to grow, and the resize
+/// gets tweened by whatever animation context happens to be active
+/// (Menu dismiss, …), briefly drawing the new wider text inside the
+/// old narrower capsule.
+///
+/// `.fixedSize(horizontal: true)` keeps the Text from being squeezed,
+/// and `.clipShape(Capsule())` makes sure anything that does momentarily
+/// poke outside the capsule stays inside the rounded silhouette.
 struct FilterPill: View {
     let icon: String
     let text: String
@@ -20,6 +26,7 @@ struct FilterPill: View {
             Text(text)
                 .font(Theme.Typography.caption.weight(.semibold))
                 .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
             Image(systemName: "chevron.down")
                 .font(.system(size: 8, weight: .bold, design: .rounded))
                 .opacity(0.7)
@@ -47,6 +54,7 @@ struct FilterPill: View {
                 lineWidth: 0.5
             )
         )
+        .clipShape(Capsule())
         .shadow(
             color: isActive ? Theme.Colors.accentGlow.opacity(0.55) : .clear,
             radius: 10, y: 4
