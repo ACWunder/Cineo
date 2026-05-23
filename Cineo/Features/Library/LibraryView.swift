@@ -16,17 +16,14 @@ struct LibraryView: View {
     /// Height the filter strip overlay occupies. Content scrolls *under*
     /// it because the strip has a transparent background.
     private let filterStripHeight: CGFloat = 48
-    /// Approximate height of the search bar including its top padding.
-    private let searchBarHeight: CGFloat = 38 + Theme.Spacing.xs
 
-    /// Total height that the floating header (search bar + filter strip)
-    /// occupies above the scrollable content. Used both as the ScrollView's
-    /// reserved top spacer and as the maximum slide distance.
-    private var headerHeight: CGFloat { searchBarHeight + filterStripHeight }
-
-    /// 0 = header fully visible; -headerHeight = header fully scrolled
-    /// out of view. Drives both the slide and the fade.
-    @State private var headerOffset: CGFloat = 0
+    /// 0 = filter strip fully visible; -filterStripHeight = strip fully
+    /// scrolled out of view. Drives both the slide and the fade.
+    /// The search bar above the strip is persistent and never slides —
+    /// that's what keeps the TextField mounted across the isSearching
+    /// state flip, so typing the first character doesn't tear down the
+    /// view tree and dismiss the keyboard mid-keystroke.
+    @State private var filterOffset: CGFloat = 0
 
     private let columns = [GridItem(.adaptive(minimum: 168), spacing: Theme.Spacing.md)]
 
@@ -34,13 +31,27 @@ struct LibraryView: View {
         NavigationStack {
             ZStack {
                 Theme.Colors.background.ignoresSafeArea()
-                if isSearching {
-                    VStack(spacing: 0) {
-                        searchBar
+
+                // ONE persistent VStack. The search field never leaves
+                // the view tree — flipping isSearching only swaps the
+                // content area below it. This is what keeps the keyboard
+                // from closing on the first keystroke and prevents the
+                // visible "jump into a new search view" the user reported.
+                VStack(spacing: 0) {
+                    CineoSearchField(
+                        text: $searchQuery,
+                        placeholder: "Film oder Serie hinzufügen …",
+                        focus: $searchFocused
+                    )
+                    .padding(.horizontal, Theme.Spacing.md)
+                    .padding(.top, Theme.Spacing.xs)
+                    .padding(.bottom, Theme.Spacing.xs)
+
+                    if isSearching {
                         searchResultsList
+                    } else {
+                        libraryGrid
                     }
-                } else {
-                    libraryGrid
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
@@ -81,16 +92,15 @@ struct LibraryView: View {
                 message: "Markiere Filme oder Serien als gesehen — sie landen dann hier mit deiner Bewertung."
             )
         } else {
-            // Both the search bar and the filter strip float above the
-            // ScrollView. The pair shares one offset: scrolling down slides
-            // the bar up out of view (taking the chips with it until they
-            // hit the top), scrolling up brings the bar back. The filter
-            // strip itself never disappears.
+            // ScrollView is the bottom layer; the filter strip floats
+            // above it and slides off on down-scroll, comes back on
+            // up-scroll. Search bar lives one level up in the body and
+            // is unaffected by this.
             ZStack(alignment: .top) {
                 ScrollView {
                     VStack(spacing: 0) {
-                        // Reserved space behind the overlay header.
-                        Color.clear.frame(height: headerHeight)
+                        // Reserved space behind the overlay filter strip.
+                        Color.clear.frame(height: filterStripHeight)
 
                         if watchedItems.isEmpty {
                             filterEmptyState
@@ -111,52 +121,36 @@ struct LibraryView: View {
                 .onScrollGeometryChange(for: CGFloat.self) { proxy in
                     proxy.contentOffset.y
                 } action: { oldValue, newValue in
-                    updateHeaderOffset(old: oldValue, new: newValue)
+                    updateFilterOffset(old: oldValue, new: newValue)
                 }
 
-                VStack(spacing: 0) {
-                    floatingSearchBar
-                    filterStrip
-                        .padding(.horizontal, Theme.Spacing.md)
-                        .frame(height: filterStripHeight)
-                }
-                .opacity(headerOpacity)
-                .offset(y: headerOffset)
+                filterStrip
+                    .padding(.horizontal, Theme.Spacing.md)
+                    .frame(height: filterStripHeight)
+                    .opacity(filterOpacity)
+                    .offset(y: filterOffset)
             }
         }
     }
 
-    /// Linear 1 → 0 as the entire header slides off-screen. Slightly faster
-    /// than the slide so search + chips are fully invisible well before
-    /// the translation finishes.
-    private var headerOpacity: Double {
-        let progress = max(0, min(1, -headerOffset / headerHeight))
+    /// Linear 1 → 0 as the filter strip slides off-screen. Slightly faster
+    /// than the slide so chips are fully invisible well before the
+    /// translation finishes.
+    private var filterOpacity: Double {
+        let progress = max(0, min(1, -filterOffset / filterStripHeight))
         return max(0, 1 - progress * 1.4)
     }
 
-    /// The same search field as before, but exposed via the overlay path
-    /// so the body's outer VStack doesn't render its own copy.
-    private var floatingSearchBar: some View {
-        CineoSearchField(
-            text: $searchQuery,
-            placeholder: "Film oder Serie hinzufügen …",
-            focus: $searchFocused
-        )
-        .padding(.horizontal, Theme.Spacing.md)
-        .padding(.top, Theme.Spacing.xs)
-    }
-
-    /// Translate the whole header (search bar + filter strip) 1:1 with
-    /// the user's scroll. Down-scroll hides both; up-scroll brings both
-    /// back. The ScrollView's frame stays constant so there's no layout
-    /// feedback loop.
-    private func updateHeaderOffset(old: CGFloat, new: CGFloat) {
+    /// Translate the filter strip 1:1 with the user's scroll. Down-scroll
+    /// hides it, up-scroll brings it back. ScrollView frame stays constant
+    /// so there's no layout feedback loop.
+    private func updateFilterOffset(old: CGFloat, new: CGFloat) {
         guard new >= 0 else { return }
         let delta = new - old
-        let updated = headerOffset - delta
-        let clamped = max(-headerHeight, min(0, updated))
-        if abs(clamped - headerOffset) > 0.25 {
-            headerOffset = clamped
+        let updated = filterOffset - delta
+        let clamped = max(-filterStripHeight, min(0, updated))
+        if abs(clamped - filterOffset) > 0.25 {
+            filterOffset = clamped
         }
     }
 
@@ -198,16 +192,6 @@ struct LibraryView: View {
     }
 
     private var isSearching: Bool { !trimmedQuery.isEmpty }
-
-    private var searchBar: some View {
-        CineoSearchField(
-            text: $searchQuery,
-            placeholder: "Film oder Serie hinzufügen …",
-            focus: $searchFocused
-        )
-        .padding(.horizontal, Theme.Spacing.md)
-        .padding(.top, Theme.Spacing.xs)
-    }
 
     @ViewBuilder
     private var searchResultsList: some View {
