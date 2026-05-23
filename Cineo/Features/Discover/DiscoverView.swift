@@ -97,6 +97,7 @@ struct DiscoverView: View {
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.top, Theme.Spacing.xs)
         .padding(.bottom, Theme.Spacing.sm)
+        .animation(nil, value: viewModel.filter)
     }
 
     private var profileButton: some View {

@@ -171,6 +171,7 @@ struct WatchlistView: View {
             mediaTypeMenu
             Spacer(minLength: 0)
         }
+        .animation(nil, value: mediaFilter)
     }
 
     private var mediaTypeMenu: some View {

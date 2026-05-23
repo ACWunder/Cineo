@@ -273,6 +273,14 @@ struct LibraryView: View {
             genreMenu
         }
         .frame(maxWidth: .infinity, alignment: .center)
+        // Filter changes resize one pill, which moves all the others
+        // (the HStack is centered). Without explicit nil animations
+        // SwiftUI tweens those positions and the new label is briefly
+        // drawn into the old pill's smaller frame, looking clipped.
+        .animation(nil, value: viewModel.sort)
+        .animation(nil, value: viewModel.mediaType)
+        .animation(nil, value: viewModel.minRating)
+        .animation(nil, value: viewModel.selectedGenres)
     }
 
     private var sortMenu: some View {
