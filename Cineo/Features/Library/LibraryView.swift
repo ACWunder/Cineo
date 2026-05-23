@@ -112,6 +112,7 @@ struct LibraryView: View {
 
                 VStack(spacing: 0) {
                     floatingSearchBar
+                        .opacity(searchBarOpacity)
                     filterStrip
                         .padding(.horizontal, Theme.Spacing.md)
                         .frame(height: filterStripHeight)
@@ -119,6 +120,14 @@ struct LibraryView: View {
                 .offset(y: searchBarOffset)
             }
         }
+    }
+
+    /// Linear 1 → 0 as the search bar slides off-screen. Fully transparent
+    /// well before the slide finishes so it actually disappears instead of
+    /// staying a faint translucent line.
+    private var searchBarOpacity: Double {
+        let progress = max(0, min(1, -searchBarOffset / searchBarHeight))
+        return max(0, 1 - progress * 1.6)
     }
 
     /// The same search field as before, but exposed via the overlay path
@@ -278,7 +287,7 @@ struct LibraryView: View {
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(Theme.Colors.accentLight)
                 .frame(width: 34, height: 34)
-                .background(.ultraThinMaterial.opacity(0.4), in: Circle())
+                .background(Theme.Colors.surfaceElevated, in: Circle())
                 .overlay(
                     Circle().stroke(
                         LinearGradient(
@@ -396,7 +405,7 @@ struct LibraryView: View {
                         .blendMode(.plusLighter)
                         .allowsHitTesting(false)
                 } else {
-                    Capsule().fill(.ultraThinMaterial.opacity(0.4))
+                    Capsule().fill(Theme.Colors.surfaceElevated)
                 }
             }
         )
