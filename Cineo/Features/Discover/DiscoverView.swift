@@ -199,44 +199,8 @@ struct DiscoverView: View {
     }
 
     private func filterPillLabel(icon: String, text: String, isActive: Bool) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-            Text(text)
-                .font(Theme.Typography.footnote.weight(.semibold))
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-            Image(systemName: "chevron.down")
-                .font(.system(size: 9, weight: .bold, design: .rounded))
-                .opacity(0.7)
-        }
-        .foregroundStyle(isActive ? Color(hex: 0x2A1A05) : Theme.Colors.textPrimary)
-        .padding(.horizontal, Theme.Spacing.sm)
-        .padding(.vertical, 7)
-        .background(
-            ZStack {
-                Capsule().fill(.ultraThinMaterial.opacity(0.4))
-                    .opacity(isActive ? 0 : 1)
-                Capsule().fill(Theme.Colors.accentGradient)
-                    .opacity(isActive ? 1 : 0)
-                Capsule()
-                    .fill(Theme.Colors.accentSheen)
-                    .blendMode(.plusLighter)
-                    .opacity(isActive ? 1 : 0)
-                    .allowsHitTesting(false)
-            }
-        )
-        .overlay(
-            Capsule().stroke(
-                isActive ? Color.white.opacity(0.28) : Theme.Colors.border,
-                lineWidth: 0.5
-            )
-        )
-        .clipShape(Capsule())
-        .shadow(
-            color: isActive ? Theme.Colors.accentGlow.opacity(0.55) : .clear,
-            radius: 10, y: 4
-        )
+        FilterPill(icon: icon, text: text, isActive: isActive)
+            .id("\(icon)|\(text)|\(isActive)")
     }
 
     @ViewBuilder

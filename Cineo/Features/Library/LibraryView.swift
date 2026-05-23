@@ -390,48 +390,12 @@ struct LibraryView: View {
     }
 
     private func filterPillLabel(icon: String, text: String, isActive: Bool) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-            Text(text)
-                .font(Theme.Typography.caption.weight(.semibold))
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-            Image(systemName: "chevron.down")
-                .font(.system(size: 8, weight: .bold, design: .rounded))
-                .opacity(0.7)
-        }
-        .foregroundStyle(isActive ? Color(hex: 0x2A1A05) : Theme.Colors.textPrimary)
-        .padding(.horizontal, Theme.Spacing.sm)
-        .padding(.vertical, 6)
-        .background(
-            // Always rendered as a Capsule, both states cross-faded via
-            // opacity instead of swapped through an if/else. Without this
-            // the pill briefly rendered as a rectangle while SwiftUI
-            // rebuilt the background subtree on each toggle.
-            ZStack {
-                Capsule().fill(Theme.Colors.surfaceElevated)
-                    .opacity(isActive ? 0 : 1)
-                Capsule().fill(Theme.Colors.accentGradient)
-                    .opacity(isActive ? 1 : 0)
-                Capsule()
-                    .fill(Theme.Colors.accentSheen)
-                    .blendMode(.plusLighter)
-                    .opacity(isActive ? 1 : 0)
-                    .allowsHitTesting(false)
-            }
-        )
-        .overlay(
-            Capsule().stroke(
-                isActive ? Color.white.opacity(0.28) : Theme.Colors.border,
-                lineWidth: 0.5
-            )
-        )
-        .clipShape(Capsule())
-        .shadow(
-            color: isActive ? Theme.Colors.accentGlow.opacity(0.55) : .clear,
-            radius: 10, y: 4
-        )
+        // Delegate to a fully isolated subview keyed by its content so the
+        // pill rebuilds from scratch every time the label changes — no
+        // animation, no in-place resize, no half-frame where the new
+        // text is wider than the old capsule.
+        FilterPill(icon: icon, text: text, isActive: isActive)
+            .id("\(icon)|\(text)|\(isActive)")
     }
 
     /// Defer filter mutations to the next runloop tick so iOS can finish
