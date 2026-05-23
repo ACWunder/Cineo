@@ -28,7 +28,7 @@ struct LibraryView: View {
     /// out of view. Drives both the slide and the fade.
     @State private var headerOffset: CGFloat = 0
 
-    private let columns = [GridItem(.adaptive(minimum: 156), spacing: Theme.Spacing.md)]
+    private let columns = [GridItem(.adaptive(minimum: 148), spacing: Theme.Spacing.md)]
 
     var body: some View {
         NavigationStack {
@@ -103,7 +103,7 @@ struct LibraryView: View {
                                     .buttonStyle(CineoPressStyle(scale: 0.97))
                                 }
                             }
-                            .padding(.horizontal, Theme.Spacing.lg)
+                            .padding(.horizontal, Theme.Spacing.xl)
                             .padding(.bottom, Theme.Spacing.lg)
                         }
                     }
@@ -117,7 +117,7 @@ struct LibraryView: View {
                 VStack(spacing: 0) {
                     floatingSearchBar
                     filterStrip
-                        .padding(.horizontal, Theme.Spacing.lg)
+                        .padding(.horizontal, Theme.Spacing.xl)
                         .frame(height: filterStripHeight)
                 }
                 .opacity(headerOpacity)
@@ -142,7 +142,7 @@ struct LibraryView: View {
             placeholder: "Film oder Serie hinzufügen …",
             focus: $searchFocused
         )
-        .padding(.horizontal, Theme.Spacing.lg)
+        .padding(.horizontal, Theme.Spacing.xl)
         .padding(.top, Theme.Spacing.xs)
     }
 
@@ -188,7 +188,7 @@ struct LibraryView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, Theme.Spacing.xxl)
-        .padding(.horizontal, Theme.Spacing.lg)
+        .padding(.horizontal, Theme.Spacing.xl)
     }
 
     // MARK: - Search bar + results
@@ -205,7 +205,7 @@ struct LibraryView: View {
             placeholder: "Film oder Serie hinzufügen …",
             focus: $searchFocused
         )
-        .padding(.horizontal, Theme.Spacing.lg)
+        .padding(.horizontal, Theme.Spacing.xl)
         .padding(.top, Theme.Spacing.xs)
     }
 
@@ -237,7 +237,7 @@ struct LibraryView: View {
                         }
                     }
                 }
-                .padding(.horizontal, Theme.Spacing.lg)
+                .padding(.horizontal, Theme.Spacing.xl)
                 .padding(.vertical, Theme.Spacing.sm)
             }
         }
