@@ -13,17 +13,19 @@ struct LibraryView: View {
 
     @FocusState private var searchFocused: Bool
 
-    /// Height the filter strip overlay occupies. Content scrolls *under*
-    /// it because the strip has a transparent background.
+    /// Heights of the two pieces of the floating header overlay.
+    private let searchBarHeight: CGFloat = 50  // xs(8) + field(34) + xs(8)
     private let filterStripHeight: CGFloat = 48
+    /// Total reserved space at the top of the scroll content when both
+    /// pieces are visible (i.e. when not actively searching).
+    private var headerHeight: CGFloat { searchBarHeight + filterStripHeight }
 
-    /// 0 = filter strip fully visible; -filterStripHeight = strip fully
-    /// scrolled out of view. Drives both the slide and the fade.
-    /// The search bar above the strip is persistent and never slides —
-    /// that's what keeps the TextField mounted across the isSearching
-    /// state flip, so typing the first character doesn't tear down the
-    /// view tree and dismiss the keyboard mid-keystroke.
-    @State private var filterOffset: CGFloat = 0
+    /// 0 = header fully visible; -headerHeight = header fully scrolled
+    /// out of view. Drives both the slide and the fade. The header
+    /// VStack stays mounted across isSearching flips so the TextField
+    /// inside it keeps its identity, focus and keyboard — only its
+    /// offset/opacity change, never its position in the view tree.
+    @State private var headerOffset: CGFloat = 0
 
     private let columns = [GridItem(.adaptive(minimum: 168), spacing: Theme.Spacing.md)]
 
@@ -32,26 +34,18 @@ struct LibraryView: View {
             ZStack {
                 Theme.Colors.background.ignoresSafeArea()
 
-                // ONE persistent VStack. The search field never leaves
-                // the view tree — flipping isSearching only swaps the
-                // content area below it. This is what keeps the keyboard
-                // from closing on the first keystroke and prevents the
-                // visible "jump into a new search view" the user reported.
-                VStack(spacing: 0) {
-                    CineoSearchField(
-                        text: $searchQuery,
-                        placeholder: "Film oder Serie hinzufügen …",
-                        focus: $searchFocused
-                    )
-                    .padding(.horizontal, Theme.Spacing.md)
-                    .padding(.top, Theme.Spacing.xs)
-                    .padding(.bottom, Theme.Spacing.xs)
-
-                    if isSearching {
-                        searchResultsList
-                    } else {
-                        libraryGrid
-                    }
+                // Bottom layer: the actual content. Reserves space at
+                // the top for the floating header so its first row
+                // starts below it and scrolls cleanly under it.
+                //
+                // Top layer: persistent header overlay. The
+                // CineoSearchField sits at slot #1 of the same VStack
+                // in both branches of isSearching, so it never leaves
+                // the view tree and the TextField keeps its identity
+                // (and the keyboard). Only its offset/opacity change.
+                ZStack(alignment: .top) {
+                    contentArea
+                    floatingHeader
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
@@ -77,6 +71,70 @@ struct LibraryView: View {
         }
     }
 
+    // MARK: - Floating header (search bar + filter strip)
+
+    /// Persistent overlay containing the CineoSearchField (always) and
+    /// the filter strip (only when not actively searching). Slides off
+    /// on down-scroll, comes back on up-scroll. When searching, the
+    /// offset/opacity are forced to 0/1 so the bar stays in place.
+    private var floatingHeader: some View {
+        VStack(spacing: 0) {
+            CineoSearchField(
+                text: $searchQuery,
+                placeholder: "Film oder Serie hinzufügen …",
+                focus: $searchFocused
+            )
+            .padding(.horizontal, Theme.Spacing.md)
+            .padding(.top, Theme.Spacing.xs)
+            .padding(.bottom, Theme.Spacing.xs)
+
+            if !isSearching {
+                filterStrip
+                    .padding(.horizontal, Theme.Spacing.md)
+                    .frame(height: filterStripHeight)
+            }
+        }
+        .offset(y: isSearching ? 0 : headerOffset)
+        .opacity(isSearching ? 1 : headerOpacity)
+    }
+
+    /// Linear 1 → 0 as the header slides off-screen. Slightly faster
+    /// than the slide so the bar is fully invisible well before the
+    /// translation finishes.
+    private var headerOpacity: Double {
+        let progress = max(0, min(1, -headerOffset / headerHeight))
+        return max(0, 1 - progress * 1.4)
+    }
+
+    /// Translate the header 1:1 with the user's scroll. Down-scroll
+    /// hides it, up-scroll brings it back. ScrollView frame stays
+    /// constant so there's no layout feedback loop.
+    private func updateHeaderOffset(old: CGFloat, new: CGFloat) {
+        guard new >= 0 else { return }
+        let delta = new - old
+        let updated = headerOffset - delta
+        let clamped = max(-headerHeight, min(0, updated))
+        if abs(clamped - headerOffset) > 0.25 {
+            headerOffset = clamped
+        }
+    }
+
+    // MARK: - Content area (grid vs. search results)
+
+    @ViewBuilder
+    private var contentArea: some View {
+        if isSearching {
+            VStack(spacing: 0) {
+                // Reserve space behind the search bar so the first
+                // result row doesn't slide under it.
+                Color.clear.frame(height: searchBarHeight)
+                searchResultsList
+            }
+        } else {
+            libraryGrid
+        }
+    }
+
     // MARK: - Library grid (watched = true)
 
     private var allWatched: [LibraryItem] {
@@ -98,65 +156,37 @@ struct LibraryView: View {
                 message: "Markiere Filme oder Serien als gesehen — sie landen dann hier mit deiner Bewertung."
             )
         } else {
-            // ScrollView is the bottom layer; the filter strip floats
-            // above it and slides off on down-scroll, comes back on
-            // up-scroll. Search bar lives one level up in the body and
-            // is unaffected by this.
-            ZStack(alignment: .top) {
-                ScrollView {
-                    VStack(spacing: 0) {
-                        // Reserved space behind the overlay filter strip.
-                        Color.clear.frame(height: filterStripHeight)
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Reserve space behind the floating header so the
+                    // first row of the grid starts below it. When the
+                    // user scrolls down, the header slides off and the
+                    // grid scrolls cleanly under that empty space —
+                    // the top of the screen ends up showing posters,
+                    // not a blocking header.
+                    Color.clear.frame(height: headerHeight)
 
-                        if watchedItems.isEmpty {
-                            filterEmptyState
-                        } else {
-                            LazyVGrid(columns: columns, spacing: Theme.Spacing.md) {
-                                ForEach(watchedItems) { item in
-                                    NavigationLink(value: item) {
-                                        LibraryGridCell(item: item)
-                                    }
-                                    .buttonStyle(CineoPressStyle(scale: 0.97))
+                    if watchedItems.isEmpty {
+                        filterEmptyState
+                    } else {
+                        LazyVGrid(columns: columns, spacing: Theme.Spacing.md) {
+                            ForEach(watchedItems) { item in
+                                NavigationLink(value: item) {
+                                    LibraryGridCell(item: item)
                                 }
+                                .buttonStyle(CineoPressStyle(scale: 0.97))
                             }
-                            .padding(.horizontal, Theme.Spacing.md)
-                            .padding(.bottom, Theme.Spacing.lg)
                         }
+                        .padding(.horizontal, Theme.Spacing.md)
+                        .padding(.bottom, Theme.Spacing.lg)
                     }
                 }
-                .onScrollGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.contentOffset.y
-                } action: { oldValue, newValue in
-                    updateFilterOffset(old: oldValue, new: newValue)
-                }
-
-                filterStrip
-                    .padding(.horizontal, Theme.Spacing.md)
-                    .frame(height: filterStripHeight)
-                    .opacity(filterOpacity)
-                    .offset(y: filterOffset)
             }
-        }
-    }
-
-    /// Linear 1 → 0 as the filter strip slides off-screen. Slightly faster
-    /// than the slide so chips are fully invisible well before the
-    /// translation finishes.
-    private var filterOpacity: Double {
-        let progress = max(0, min(1, -filterOffset / filterStripHeight))
-        return max(0, 1 - progress * 1.4)
-    }
-
-    /// Translate the filter strip 1:1 with the user's scroll. Down-scroll
-    /// hides it, up-scroll brings it back. ScrollView frame stays constant
-    /// so there's no layout feedback loop.
-    private func updateFilterOffset(old: CGFloat, new: CGFloat) {
-        guard new >= 0 else { return }
-        let delta = new - old
-        let updated = filterOffset - delta
-        let clamped = max(-filterStripHeight, min(0, updated))
-        if abs(clamped - filterOffset) > 0.25 {
-            filterOffset = clamped
+            .onScrollGeometryChange(for: CGFloat.self) { proxy in
+                proxy.contentOffset.y
+            } action: { oldValue, newValue in
+                updateHeaderOffset(old: oldValue, new: newValue)
+            }
         }
     }
 
