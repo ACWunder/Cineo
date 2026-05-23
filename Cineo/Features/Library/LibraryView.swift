@@ -13,10 +13,16 @@ struct LibraryView: View {
 
     @FocusState private var searchFocused: Bool
 
-    /// Height the filter strip overlay occupies. Stays pinned to the top
-    /// of the grid; content scrolls *under* it because the strip has a
-    /// transparent background.
+    /// Height the filter strip overlay occupies. Content scrolls *under*
+    /// it because the strip has a transparent background.
     private let filterStripHeight: CGFloat = 48
+    /// Approximate height of the search bar including its top padding.
+    private let searchBarHeight: CGFloat = 38 + Theme.Spacing.xs
+
+    /// 0 = search bar fully visible above the filter strip;
+    /// -searchBarHeight = search bar fully scrolled out of view, filter
+    /// strip pinned to the top edge.
+    @State private var searchBarOffset: CGFloat = 0
 
     private let columns = [GridItem(.adaptive(minimum: 168), spacing: Theme.Spacing.md)]
 
@@ -24,13 +30,13 @@ struct LibraryView: View {
         NavigationStack {
             ZStack {
                 Theme.Colors.background.ignoresSafeArea()
-                VStack(spacing: 0) {
-                    searchBar
-                    if isSearching {
+                if isSearching {
+                    VStack(spacing: 0) {
+                        searchBar
                         searchResultsList
-                    } else {
-                        libraryGrid
                     }
+                } else {
+                    libraryGrid
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
@@ -71,15 +77,16 @@ struct LibraryView: View {
                 message: "Markiere Filme oder Serien als gesehen — sie landen dann hier mit deiner Bewertung."
             )
         } else {
-            // Filter strip lives as an overlay above the ScrollView so its
-            // visibility never changes the underlying layout — that was the
-            // source of the jitter/pause.
+            // Both the search bar and the filter strip float above the
+            // ScrollView. The pair shares one offset: scrolling down slides
+            // the bar up out of view (taking the chips with it until they
+            // hit the top), scrolling up brings the bar back. The filter
+            // strip itself never disappears.
             ZStack(alignment: .top) {
                 ScrollView {
                     VStack(spacing: 0) {
-                        // Reserved spacer that lets the first row of cells
-                        // start below the floating filter strip.
-                        Color.clear.frame(height: filterStripHeight)
+                        // Reserved space behind the overlay header.
+                        Color.clear.frame(height: searchBarHeight + filterStripHeight)
 
                         if watchedItems.isEmpty {
                             filterEmptyState
@@ -97,14 +104,46 @@ struct LibraryView: View {
                         }
                     }
                 }
+                .onScrollGeometryChange(for: CGFloat.self) { proxy in
+                    proxy.contentOffset.y
+                } action: { oldValue, newValue in
+                    updateSearchBarOffset(old: oldValue, new: newValue)
+                }
 
-                // Stays pinned to the top, transparent background so the
-                // grid scrolls *under* the chips instead of being clipped
-                // by an opaque strip.
-                filterStrip
-                    .padding(.horizontal, Theme.Spacing.md)
-                    .frame(height: filterStripHeight)
+                VStack(spacing: 0) {
+                    floatingSearchBar
+                    filterStrip
+                        .padding(.horizontal, Theme.Spacing.md)
+                        .frame(height: filterStripHeight)
+                }
+                .offset(y: searchBarOffset)
             }
+        }
+    }
+
+    /// The same search field as before, but exposed via the overlay path
+    /// so the body's outer VStack doesn't render its own copy.
+    private var floatingSearchBar: some View {
+        CineoSearchField(
+            text: $searchQuery,
+            placeholder: "Film oder Serie hinzufügen …",
+            focus: $searchFocused
+        )
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.top, Theme.Spacing.xs)
+    }
+
+    /// Translate the search bar 1:1 with the user's scroll, clamped so it
+    /// only ever hides as far as its own height. The filter strip travels
+    /// with it (they're in the same VStack) so the chips slide up to take
+    /// the top spot when the bar is fully tucked away.
+    private func updateSearchBarOffset(old: CGFloat, new: CGFloat) {
+        guard new >= 0 else { return }
+        let delta = new - old
+        let updated = searchBarOffset - delta
+        let clamped = max(-searchBarHeight, min(0, updated))
+        if abs(clamped - searchBarOffset) > 0.25 {
+            searchBarOffset = clamped
         }
     }
 
