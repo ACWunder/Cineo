@@ -12,25 +12,26 @@ struct DiscoverView: View {
 
     @State private var viewModel = DiscoverViewModel()
     @State private var ratingCandidate: DiscoverViewModel.Candidate?
-    @State private var offset: CGSize = .zero
+    /// Live drag offset of the top card — also drives the
+    /// programmatic fly-offs from the X/+/eye buttons. One state,
+    /// one implicit animation, one code path for both gesture-driven
+    /// swipes and button taps. (Pattern taken from the Lieblingsgerichte
+    /// app's HomeView, which feels smooth precisely because of this
+    /// simplicity.)
+    @State private var translation: CGSize = .zero
     @State private var didInitialLoad: Bool = false
     @State private var didCrossThreshold: Bool = false
-    @State private var flyingOut: Bool = false
     @State private var path = NavigationPath()
     @State private var showLogoutConfirm: Bool = false
 
-    /// A snapshot of the card the user just dismissed, while it animates
-    /// off-screen independently from the stack. Popping the stack runs
-    /// the moment the swipe starts, so the next card rises into place
-    /// right away — the leaving card just keeps flying outwards on its
-    /// own layer.
-    @State private var departingCard: DiscoverViewModel.Candidate?
-    @State private var departingOffset: CGSize = .zero
-    @State private var departingRotation: Double = 0
-    @State private var departingOpacity: Double = 1
+    /// IDs the user has dismissed in this session, kept locally so the
+    /// next `reload` excludes them immediately — without waiting for the
+    /// Firestore write + snapshot listener round-trip.
+    @State private var locallyDismissed: Set<Int> = []
 
-    private let swipeThreshold: CGFloat = 110
+    private let swipeThreshold: CGFloat = 100
     private let maxRotation: Double = 12
+    private let swipeDuration: Double = 0.3
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -222,8 +223,8 @@ struct DiscoverView: View {
         VStack(spacing: 0) {
             Spacer(minLength: Theme.Spacing.md)
             ZStack {
+                posterPrefetcher
                 cardStack
-                departingOverlay
             }
             .padding(.horizontal, Theme.Spacing.md)
             Spacer(minLength: Theme.Spacing.md)
@@ -235,20 +236,47 @@ struct DiscoverView: View {
         }
     }
 
-    @ViewBuilder
-    private var departingOverlay: some View {
-        if let departing = departingCard {
-            DiscoverCardView(candidate: departing)
-                .frame(maxWidth: 520)
-                .offset(departingOffset)
-                .rotationEffect(.degrees(departingRotation), anchor: .bottom)
-                .opacity(departingOpacity)
+    /// Renders 1×1 invisible `PosterView`s for the candidates queued
+    /// just past the visible top-3. Each one runs its `.task` and
+    /// drops the decoded bitmap into the shared `PosterImageCache`,
+    /// so by the time the card actually rises into a visible depth
+    /// slot, `PosterView.init` pulls the image straight from cache
+    /// on the very first frame — no placeholder, no late "popping
+    /// in" of a poster.
+    private var posterPrefetcher: some View {
+        ZStack {
+            ForEach(viewModel.stack.dropFirst(3).prefix(5), id: \.id) { candidate in
+                PosterView(
+                    path: candidate.posterPath,
+                    size: "w500",
+                    radius: 0,
+                    shadow: false
+                )
+                .frame(width: 1, height: 1)
+                .opacity(0)
                 .allowsHitTesting(false)
-                .zIndex(99)
+                .accessibilityHidden(true)
+            }
         }
+        .allowsHitTesting(false)
     }
 
     // MARK: - Card stack
+    //
+    // Lieblingsgerichte HomeView pattern, transplanted as-is:
+    //   * one `translation: CGSize` drives the top card
+    //   * cards behind get a static y offset based on their depth
+    //   * `.animation(.easeInOut(duration: 0.3), value: translation)`
+    //     is the only animation modifier; it handles drag tracking,
+    //     bounce-back on a partial drag, and the fly-off itself
+    //   * a fly-off is just `withAnimation { translation = ±800 }`
+    //     followed by a `DispatchQueue.main.asyncAfter` that resets
+    //     translation AND advances the model — no separate departing
+    //     layer, no completion callbacks, no two-tick hacks
+    //
+    // The X / + / eye buttons call the exact same functions as the
+    // swipe paths, so a button tap and a flick are visually
+    // indistinguishable.
 
     private var cardStack: some View {
         ZStack {
@@ -264,11 +292,11 @@ struct DiscoverView: View {
                                 .padding(Theme.Spacing.lg)
                         }
                     }
-                    .scaleEffect(stackScale(for: depth))
-                    .offset(y: stackYOffset(for: depth))
-                    .offset(isTop ? offset : .zero)
+                    .offset(
+                        x: isTop ? translation.width : 0,
+                        y: CGFloat(depth) * 14 + (isTop ? translation.height : 0)
+                    )
                     .rotationEffect(isTop ? .degrees(rotationAngle) : .zero, anchor: .bottom)
-                    .opacity(isTop && flyingOut ? 0 : 1)
                     .zIndex(Double(10 - depth))
                     .gesture(isTop ? dragGesture(for: candidate) : nil)
                     .onTapGesture {
@@ -276,12 +304,10 @@ struct DiscoverView: View {
                             path.append(viewModel.toLibraryItem(candidate, rating: nil, watched: false))
                         }
                     }
-                    .animation(motion, value: offset)
-                    .animation(motion, value: flyingOut)
-                    // When the stack pops a card, SwiftUI's default transition
-                    // would otherwise fade/scale the disappearing card in place
-                    // — that's the "ghost in the back" you saw. Cut it: the
-                    // departingOverlay already shows the leaving card.
+                    .animation(reduceMotion
+                               ? Theme.Motion.reduced
+                               : .easeInOut(duration: swipeDuration),
+                               value: translation)
                     .transition(.identity)
                     .accessibilityElement(children: .combine)
             }
@@ -296,53 +322,34 @@ struct DiscoverView: View {
                 tint: Theme.Colors.dismissTint,
                 rotation: -10
             )
-            .opacity(max(0, Double(-offset.width / swipeThreshold)))
+            .opacity(max(0, Double(-translation.width / swipeThreshold)))
             Spacer()
             SwipeBadge(
                 text: "GESEHEN",
                 tint: Theme.Colors.accentLight,
                 rotation: 10
             )
-            .opacity(max(0, Double(offset.width / swipeThreshold)))
+            .opacity(max(0, Double(translation.width / swipeThreshold)))
         }
     }
 
     private var rotationAngle: Double {
-        let raw = Double(offset.width) / 20
+        let raw = Double(translation.width) / 20
         return max(-maxRotation, min(maxRotation, raw))
     }
-
-    private func stackScale(for depth: Int) -> CGFloat {
-        if reduceMotion { return 1 }
-        switch depth {
-        case 0: return 1
-        case 1: return 0.95
-        default: return 0.9
-        }
-    }
-
-    private func stackYOffset(for depth: Int) -> CGFloat {
-        if reduceMotion { return 0 }
-        return CGFloat(depth) * 14
-    }
-
-    private var motion: Animation { reduceMotion ? Theme.Motion.reduced : Theme.Motion.spring }
 
     // MARK: - Actions
 
     private func actionButtons(for candidate: DiscoverViewModel.Candidate) -> some View {
         HStack(spacing: Theme.Spacing.lg) {
-            // X — dismiss with a slow, deliberate fly-out so the tap feels
-            // intentional (a quick drag-swipe already feels good because the
-            // finger carries the card most of the way; a tap starts at 0).
             CircleActionButton(symbol: "xmark", kind: .neutral, size: Theme.Layout.circleActionLg) {
-                triggerSwipe(.left, for: candidate, duration: 1.1)
+                dismiss(candidate)
             }
-            // Plus — smaller, transparent ghost — adds to watchlist
             CircleActionButton(symbol: "plus", kind: .ghost, size: Theme.Layout.circleActionSm) {
-                Task { await addToWatchlist(candidate) }
+                addToWatchlist(candidate)
             }
-            // Eye — gold, opens rating overlay
+            // Eye opens the rating overlay directly — no fly-off
+            // animation. The sheet appearing IS the feedback.
             CircleActionButton(symbol: "eye.fill", kind: .accent, size: Theme.Layout.circleActionLg) {
                 openRating(for: candidate)
             }
@@ -353,7 +360,8 @@ struct DiscoverView: View {
     private func dragGesture(for candidate: DiscoverViewModel.Candidate) -> some Gesture {
         DragGesture()
             .onChanged { value in
-                offset = value.translation
+                translation = value.translation
+
                 let crossed = abs(value.translation.width) > swipeThreshold
                 if crossed && !didCrossThreshold {
                     didCrossThreshold = true
@@ -365,118 +373,70 @@ struct DiscoverView: View {
             .onEnded { value in
                 didCrossThreshold = false
                 if value.translation.width < -swipeThreshold {
-                    triggerSwipe(.left, for: candidate)
+                    dismiss(candidate)
                 } else if value.translation.width > swipeThreshold {
-                    triggerSwipe(.right, for: candidate)
+                    promptRate(candidate)
                 } else {
-                    offset = .zero
+                    // Implicit `.animation(value: translation)` on
+                    // the card handles the bounce — no withAnimation
+                    // needed here.
+                    translation = .zero
                 }
             }
     }
 
-    private enum SwipeDirection {
-        case left, right
-        var sign: CGFloat { self == .right ? 1 : -1 }
-    }
+    // MARK: - Specific actions (gesture + button share these)
 
-    private func triggerSwipe(_ direction: SwipeDirection,
-                              for candidate: DiscoverViewModel.Candidate,
-                              duration: Double = 0.28) {
+    private func dismiss(_ candidate: DiscoverViewModel.Candidate) {
         hapticConfirm()
-        switch direction {
-        case .left:
-            // Detach the visible top card into a separate "departing" layer
-            // and pop the stack immediately. Result: the next card rises
-            // into place at the same moment the leaving card starts its
-            // long slide off-screen — no delay between the two.
-            startDeparture(candidate, direction: .left, duration: duration)
-        case .right:
-            // Right swipe keeps the card on stack; the rating overlay
-            // decides what to do next.
-            if reduceMotion {
-                flyingOut = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    offset = .zero
-                    flyingOut = false
-                    openRating(for: candidate)
-                }
-            } else {
-                withAnimation(.easeOut(duration: duration)) {
-                    offset = CGSize(width: 900 * direction.sign, height: offset.height + 60)
-                    flyingOut = true
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
-                    offset = .zero
-                    flyingOut = false
-                    openRating(for: candidate)
-                }
+        locallyDismissed.insert(candidate.tmdbId)
+        flyOffAndAdvance(translationEnd: CGSize(width: -800, height: 0)) {
+            viewModel.popTop()
+            Task {
+                await dismissed.dismiss(tmdbId: candidate.tmdbId, mediaType: candidate.mediaType)
             }
         }
     }
 
-    /// Snapshot the top card into `departingCard` (separate layer), then pop
-    /// the stack so the next card starts rising right away. The departing
-    /// layer keeps animating outwards for `duration` seconds independently.
-    private func startDeparture(_ candidate: DiscoverViewModel.Candidate,
-                                direction: SwipeDirection,
-                                duration: Double) {
-        let startingOffset = offset
-        let startingRotation = rotationAngle
-
-        departingCard = candidate
-        departingOffset = startingOffset
-        departingRotation = startingRotation
-        departingOpacity = 1
-
-        // Reset the stack offset so the next card sits naturally centered.
-        offset = .zero
-        flyingOut = false
-
-        // Pop the model immediately. The depth/scale transitions of the
-        // cards behind ride a soft slower spring so the next card glides
-        // smoothly forward instead of snapping.
-        withAnimation(.spring(response: 0.62, dampingFraction: 0.92)) {
-            switch direction {
-            case .left:
-                Task { await dismissed.dismiss(tmdbId: candidate.tmdbId, mediaType: candidate.mediaType) }
-                popAndMaybeRefill()
-            case .right:
-                popAndMaybeRefill()
-            }
-        }
-
-        // Send the departing card off-screen. Reduced motion: short fade
-        // instead of a slide.
-        if reduceMotion {
-            withAnimation(.easeOut(duration: 0.25)) {
-                departingOpacity = 0
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { clearDeparture() }
-        } else {
-            // Softer tween for taps that start from offset .zero — easeInOut
-            // ramps in/out so the X-button doesn't kick the card abruptly.
-            withAnimation(.easeInOut(duration: duration)) {
-                departingOffset = CGSize(
-                    width: 1100 * direction.sign,
-                    height: startingOffset.height + 30
-                )
-                departingRotation = direction.sign > 0 ? 12 : -12
-            }
-            withAnimation(.easeIn(duration: duration * 0.5).delay(duration * 0.55)) {
-                departingOpacity = 0
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + duration) { clearDeparture() }
+    private func addToWatchlist(_ candidate: DiscoverViewModel.Candidate) {
+        hapticConfirm()
+        let item = viewModel.toLibraryItem(candidate, rating: nil, watched: false)
+        flyOffAndAdvance(translationEnd: CGSize(width: 0, height: -800)) {
+            viewModel.popTop()
+            Task { await library.add(item) }
         }
     }
 
-    private func clearDeparture() {
-        departingCard = nil
-        departingOffset = .zero
-        departingRotation = 0
-        departingOpacity = 1
+    private func promptRate(_ candidate: DiscoverViewModel.Candidate) {
+        hapticConfirm()
+        flyOffAndAdvance(translationEnd: CGSize(width: 800, height: 0)) {
+            ratingCandidate = candidate
+            // Model intact: if the user cancels the rating, the
+            // candidate is still the top of the stack at .zero.
+        }
     }
 
-    // MARK: - Watchlist / Rating
+    /// Animates the top card to `translationEnd` over `swipeDuration`,
+    /// then on the next runloop tick after the animation completes
+    /// snaps the translation back to `.zero` and runs `advance`
+    /// (typically `viewModel.popTop()` plus any side effects).
+    ///
+    /// The reset + advance both happen in the same closure so they
+    /// land in one render: the leaving card disappears (popTop
+    /// removed it from the ForEach), the next card is now top at
+    /// translation `.zero` (center). User's eye is on the off-screen
+    /// trajectory, never notices the model jump.
+    private func flyOffAndAdvance(translationEnd: CGSize, advance: @escaping () -> Void) {
+        withAnimation(reduceMotion
+                      ? Theme.Motion.reduced
+                      : .easeInOut(duration: swipeDuration)) {
+            translation = translationEnd
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + swipeDuration) {
+            translation = .zero
+            advance()
+        }
+    }
 
     private func openRating(for candidate: DiscoverViewModel.Candidate) {
         hapticConfirm()
@@ -485,33 +445,9 @@ struct DiscoverView: View {
 
     private func commitRating(_ value: Double?, for candidate: DiscoverViewModel.Candidate) {
         let item = viewModel.toLibraryItem(candidate, rating: value, watched: true)
-        // Optimistic UI: dismiss the overlay and advance the stack right away.
-        // The Firestore write runs in the background — first-time save latency
-        // was the reason the first rating felt sluggish.
-        withAnimation(reduceMotion ? Theme.Motion.reduced : Theme.Motion.spring) {
-            ratingCandidate = nil
-        }
-        popAndMaybeRefill()
+        ratingCandidate = nil
+        viewModel.popTop()
         Task { await library.add(item) }
-    }
-
-    private func addToWatchlist(_ candidate: DiscoverViewModel.Candidate) async {
-        hapticConfirm()
-        let item = viewModel.toLibraryItem(candidate, rating: nil, watched: false)
-        await library.add(item)
-        if !reduceMotion {
-            withAnimation(.easeOut(duration: 0.28)) {
-                offset = CGSize(width: 0, height: -700)
-                flyingOut = true
-            }
-        } else {
-            flyingOut = true
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
-            popAndMaybeRefill()
-            offset = .zero
-            flyingOut = false
-        }
     }
 
     // MARK: - Haptics
@@ -540,20 +476,32 @@ struct DiscoverView: View {
 
     private func reload(preserveVisible: Int = 0) async {
         let libraryItems = library.items
-        let dismissedIds = Set(dismissed.items.map(\.tmdbId))
+        // Union with the session-local set so freshly-dismissed cards
+        // are excluded even when the Firestore listener hasn't yet
+        // delivered the snapshot containing them. The local set only
+        // ever grows; Firestore is still the persistent source of
+        // truth across sessions.
+        let dismissedIds = Set(dismissed.items.map(\.tmdbId)).union(locallyDismissed)
         await viewModel.reload(
             library: libraryItems,
             dismissedIds: dismissedIds,
             preserveVisible: preserveVisible
         )
+        // The reload above takes seconds (it fans out multiple TMDB
+        // calls per rated title). During that time the user keeps
+        // mashing X — those new dismissals land in `locallyDismissed`
+        // but the in-flight reload already snapshotted its own
+        // `dismissedIds` and is blind to them. After the new pool is
+        // committed to the stack, sweep out anything the user
+        // dismissed mid-reload so the same cards never reappear.
+        let freshDismissed = Set(dismissed.items.map(\.tmdbId))
+            .union(locallyDismissed)
+            .subtracting(dismissedIds)
+        if !freshDismissed.isEmpty {
+            viewModel.removeIDs(freshDismissed)
+        }
     }
 
-    /// Plain pop. Refills are driven exclusively by library.items.count
-    /// changes (add to watchlist / mark watched), so dismissing alone never
-    /// triggers a recompute.
-    private func popAndMaybeRefill() {
-        viewModel.popTop()
-    }
 }
 
 // MARK: - Swipe badge

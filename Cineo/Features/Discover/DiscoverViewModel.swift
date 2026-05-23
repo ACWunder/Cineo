@@ -182,6 +182,17 @@ final class DiscoverViewModel {
         allCandidates.removeAll(where: { $0.id == removed.id })
     }
 
+    /// Strip every candidate whose id is in `ids` from the pool. Used by
+    /// DiscoverView after `reload` finishes to catch anything the user
+    /// dismissed *while* the reload was in flight — the in-flight reload
+    /// snapshotted its `dismissedIds` at the start and can't see later
+    /// dismissals, so we filter them out here.
+    func removeIDs(_ ids: Set<Int>) {
+        guard !ids.isEmpty else { return }
+        stack.removeAll { ids.contains($0.id) }
+        allCandidates.removeAll { ids.contains($0.id) }
+    }
+
     func toLibraryItem(_ c: Candidate, rating: Double?, watched: Bool) -> LibraryItem {
         LibraryItem(
             tmdbId: c.tmdbId,

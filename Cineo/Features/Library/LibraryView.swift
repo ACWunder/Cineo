@@ -14,7 +14,7 @@ struct LibraryView: View {
     @FocusState private var searchFocused: Bool
 
     /// Heights of the two pieces of the floating header overlay.
-    private let searchBarHeight: CGFloat = 50  // xs(8) + field(34) + xs(8)
+    private let searchBarHeight: CGFloat = 42  // xs(8) + field(34)
     private let filterStripHeight: CGFloat = 48
     /// Total reserved space at the top of the scroll content when both
     /// pieces are visible (i.e. when not actively searching).
@@ -86,7 +86,6 @@ struct LibraryView: View {
             )
             .padding(.horizontal, Theme.Spacing.md)
             .padding(.top, Theme.Spacing.xs)
-            .padding(.bottom, Theme.Spacing.xs)
 
             if !isSearching {
                 filterStrip
@@ -396,43 +395,49 @@ struct LibraryView: View {
     private var genreMenu: some View {
         @Bindable var vm = viewModel
         let genres = uniqueGenres()
-        let isActive = !vm.selectedGenres.isEmpty
+        let isActive = !vm.excludedGenres.isEmpty
         return Menu {
-            // Always present so the menu's structure never shifts when
-            // the first genre is picked — otherwise the reset button
-            // would pop in at the top, push every genre down by two
-            // rows and look like the menu jumped. Disabled state covers
-            // the "nothing to reset" case visually.
-            Button("Alle Genres zurücksetzen", role: .destructive) {
-                vm.selectedGenres = []
+            Button("Zurücksetzen", role: .destructive) {
+                vm.excludedGenres = []
             }
             .disabled(!isActive)
             Divider()
             ForEach(genres, id: \.self) { genre in
-                // Toggle is iOS's native "checkable" menu item. The
-                // checkmark appears at the trailing edge when on; the
-                // trailing space is reserved by the menu either way,
-                // so the title text never shifts position when a row
-                // is toggled. Default (no selections) is "alle Genres"
-                // semantically — same as before — just none of the
-                // toggles are on.
-                Toggle(genre, isOn: Binding(
-                    get: { vm.selectedGenres.contains(genre) },
-                    set: { isOn in
-                        if isOn {
-                            vm.selectedGenres.insert(genre)
-                        } else {
-                            vm.selectedGenres.remove(genre)
-                        }
+                // Exclusion model: by default every genre is "on" with
+                // a leading checkmark — clicking a genre adds it to
+                // `excludedGenres`, which removes the checkmark and
+                // hides those titles from the library.
+                //
+                // We branch on a *conditional view* (Color.clear vs
+                // Image) instead of just dimming the Image's opacity,
+                // because iOS's Menu chrome re-renders any Image it
+                // finds in a Button label at full opacity, ignoring
+                // the modifier. The Color.clear placeholder has the
+                // same frame as the checkmark, so the title's x
+                // position and the row height stay constant whether
+                // a row is on or off.
+                Button {
+                    if vm.excludedGenres.contains(genre) {
+                        vm.excludedGenres.remove(genre)
+                    } else {
+                        vm.excludedGenres.insert(genre)
                     }
-                ))
+                } label: {
+                    HStack {
+                        if vm.excludedGenres.contains(genre) {
+                            Color.clear.frame(width: 14, height: 14)
+                        } else {
+                            Image(systemName: "checkmark")
+                        }
+                        Text(genre)
+                    }
+                }
                 .menuActionDismissBehavior(.disabled)
             }
         } label: {
-            let count = vm.selectedGenres.count
             FilterPill(
                 icon: "tag.fill",
-                text: isActive ? "Genre · \(count)" : "Genre",
+                text: "Genre",
                 isActive: isActive,
                 minWidth: 108
             )

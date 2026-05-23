@@ -29,10 +29,10 @@ final class LibraryViewModel {
     var sort: Sort = .addedAt
     var mediaType: MediaTypeFilter = .all
     var minRating: Int = 0                 // 0 = no filter, 1...5 = ab N Sterne
-    var selectedGenres: Set<String> = []   // empty = no filter
+    var excludedGenres: Set<String> = []   // empty = no filter, otherwise these genres are hidden
 
     var hasActiveFilters: Bool {
-        mediaType != .all || minRating > 0 || !selectedGenres.isEmpty
+        mediaType != .all || minRating > 0 || !excludedGenres.isEmpty
     }
 
     func display(from items: [LibraryItem]) -> [LibraryItem] {
@@ -48,9 +48,13 @@ final class LibraryViewModel {
             filtered = filtered.filter { ($0.rating ?? 0) >= Double(minRating) }
         }
 
-        if !selectedGenres.isEmpty {
+        if !excludedGenres.isEmpty {
+            // OR semantics: keep an item if *any* of its genres is
+            // still wanted (i.e. not in the excluded set). A film
+            // tagged Action + Sci-Fi survives a "Sci-Fi excluded"
+            // filter because Action is still wanted.
             filtered = filtered.filter { item in
-                !selectedGenres.intersection(item.genres).isEmpty
+                item.genres.contains(where: { !excludedGenres.contains($0) })
             }
         }
 
@@ -67,6 +71,6 @@ final class LibraryViewModel {
     func resetFilters() {
         mediaType = .all
         minRating = 0
-        selectedGenres = []
+        excludedGenres = []
     }
 }

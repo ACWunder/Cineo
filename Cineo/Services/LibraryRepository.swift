@@ -46,15 +46,33 @@ final class LibraryRepository {
         }
     }
 
-    /// Asks URLSession for every poster in the library (and the AsyncImage-
-    /// size we actually render at) on a background task. Cached entries are
-    /// returned instantly so this is cheap on re-runs.
+    /// Warms `PosterImageCache` with fully-decoded library posters so the
+    /// first scroll / filter / search after a cold start doesn't stutter
+    /// while every cell synchronously decodes its JPEG on the main
+    /// thread. Bounded concurrency (6 in flight) keeps the CPU from
+    /// spiking on launch.
     private func prefetchPosters() {
-        let urls = items.compactMap { TMDB.posterURL($0.posterPath, size: "w342") }
+        let urls = items.prefix(80).compactMap {
+            TMDB.posterURL($0.posterPath, size: "w342")
+        }
         guard !urls.isEmpty else { return }
         Task.detached(priority: .utility) {
-            for url in urls {
-                _ = try? await URLSession.shared.data(from: url)
+            await withTaskGroup(of: Void.self) { group in
+                let maxConcurrent = 6
+                var nextIndex = 0
+                let inFlight = min(maxConcurrent, urls.count)
+                for _ in 0..<inFlight {
+                    let url = urls[nextIndex]
+                    nextIndex += 1
+                    group.addTask { await PosterImageCache.shared.prefetch(url) }
+                }
+                while await group.next() != nil {
+                    if nextIndex < urls.count {
+                        let url = urls[nextIndex]
+                        nextIndex += 1
+                        group.addTask { await PosterImageCache.shared.prefetch(url) }
+                    }
+                }
             }
         }
     }
