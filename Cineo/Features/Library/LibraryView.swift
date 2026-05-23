@@ -368,12 +368,16 @@ struct LibraryView: View {
         let genres = uniqueGenres()
         let isActive = !vm.selectedGenres.isEmpty
         return Menu {
-            if isActive {
-                Button("Alle Genres zurücksetzen", role: .destructive) {
-                    vm.selectedGenres = []
-                }
-                Divider()
+            // Always present so the menu's structure never shifts when
+            // the first genre is picked — otherwise the reset button
+            // would pop in at the top, push every genre down by two
+            // rows and look like the menu jumped. Disabled state covers
+            // the "nothing to reset" case visually.
+            Button("Alle Genres zurücksetzen", role: .destructive) {
+                vm.selectedGenres = []
             }
+            .disabled(!isActive)
+            Divider()
             ForEach(genres, id: \.self) { genre in
                 Button {
                     if vm.selectedGenres.contains(genre) {
