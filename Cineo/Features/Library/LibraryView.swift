@@ -117,7 +117,7 @@ struct LibraryView: View {
                 VStack(spacing: 0) {
                     floatingSearchBar
                     filterStrip
-                        .padding(.horizontal, Theme.Spacing.lg)
+                        .padding(.horizontal, Theme.Spacing.md)
                         .frame(height: filterStripHeight)
                 }
                 .opacity(headerOpacity)
