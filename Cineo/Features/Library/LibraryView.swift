@@ -462,11 +462,14 @@ private struct LibraryGridCell: View {
             PosterView(path: item.posterPath, size: "w342", radius: Theme.Radius.md)
                 .frame(maxWidth: .infinity)
 
-            // Title + meta stack top-aligned inside a fixed-height frame.
-            // With a 1-line title the meta row sits directly under it; the
-            // leftover space lands at the bottom as a Spacer so the cell
-            // height itself stays constant.
+            // Title + meta sit centered inside a fixed-height frame. With
+            // a 1-line title the equal spacers above and below put the
+            // text block visually in the middle, leaving a clear gap to
+            // the cover. With a 2-line title the spacers collapse to 0
+            // and the block fills the frame naturally.
             VStack(spacing: 0) {
+                Spacer(minLength: 0)
+
                 Text(item.title)
                     .font(Theme.Typography.callout.weight(.semibold))
                     .foregroundStyle(Theme.Colors.textPrimary)
@@ -495,7 +498,7 @@ private struct LibraryGridCell: View {
 
                 Spacer(minLength: 0)
             }
-            .frame(height: textBlockHeight, alignment: .top)
+            .frame(height: textBlockHeight)
             .padding(.top, Theme.Spacing.xs)
         }
     }
