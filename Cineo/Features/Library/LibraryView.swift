@@ -65,7 +65,13 @@ struct LibraryView: View {
             await performSearch()
         }
         .sheet(item: $pendingAdd) { item in
-            AddTitleSheet(result: item)
+            AddTitleSheet(result: item) {
+                // Clear the query so the next search starts blank,
+                // and re-focus the field so the keyboard slides
+                // straight back up after the sheet dismisses.
+                searchQuery = ""
+                searchFocused = true
+            }
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }

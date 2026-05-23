@@ -82,7 +82,10 @@ struct WatchlistView: View {
             await performSearch()
         }
         .sheet(item: $pendingAdd) { item in
-            AddTitleSheet(result: item)
+            AddTitleSheet(result: item) {
+                searchQuery = ""
+                searchFocused = true
+            }
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }

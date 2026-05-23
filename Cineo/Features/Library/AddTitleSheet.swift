@@ -3,6 +3,10 @@ import SwiftUI
 struct AddTitleSheet: View {
 
     let result: TMDBSearchMultiResult
+    /// Fired once the title has been successfully written to the library,
+    /// right before the sheet dismisses. The caller uses this to reset the
+    /// search field so the next add starts from a clean slate.
+    var onAdded: (() -> Void)? = nil
 
     @Environment(LibraryRepository.self) private var library
     @Environment(\.dismiss) private var dismiss
@@ -130,6 +134,7 @@ struct AddTitleSheet: View {
                 addedAt: Date()
             )
             await library.add(item)
+            onAdded?()
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
