@@ -386,7 +386,18 @@ struct LibraryView: View {
                         vm.selectedGenres.insert(genre)
                     }
                 } label: {
-                    Label(genre, systemImage: vm.selectedGenres.contains(genre) ? "checkmark" : "")
+                    // Custom HStack so the checkmark sits on the right
+                    // and is ALWAYS rendered (just hidden when off).
+                    // That keeps the text glued to the leading edge and
+                    // every genre row in the same place when its
+                    // checkmark toggles — no horizontal jump.
+                    HStack {
+                        Text(genre)
+                        Spacer()
+                        Image(systemName: "checkmark")
+                            .font(.caption2)
+                            .opacity(vm.selectedGenres.contains(genre) ? 1 : 0)
+                    }
                 }
                 .menuActionDismissBehavior(.disabled)
             }
