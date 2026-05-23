@@ -278,9 +278,12 @@ struct LibraryView: View {
     private var sortMenu: some View {
         @Bindable var vm = viewModel
         return Menu {
-            Picker("Sortieren", selection: $vm.sort) {
-                ForEach(LibraryViewModel.Sort.allCases) { sort in
-                    Label(sort.rawValue, systemImage: sort.symbol).tag(sort)
+            ForEach(LibraryViewModel.Sort.allCases) { sort in
+                Button {
+                    applyFilterChange { vm.sort = sort }
+                } label: {
+                    Label(sort.rawValue,
+                          systemImage: vm.sort == sort ? "checkmark" : sort.symbol)
                 }
             }
         } label: {
@@ -308,7 +311,7 @@ struct LibraryView: View {
         return Menu {
             ForEach(LibraryViewModel.MediaTypeFilter.allCases) { option in
                 Button {
-                    vm.mediaType = option
+                    applyFilterChange { vm.mediaType = option }
                 } label: {
                     Label(option.rawValue,
                           systemImage: vm.mediaType == option ? "checkmark" : "")
@@ -328,14 +331,14 @@ struct LibraryView: View {
         let isActive = vm.minRating > 0
         return Menu {
             Button {
-                vm.minRating = 0
+                applyFilterChange { vm.minRating = 0 }
             } label: {
                 Label("Alle Bewertungen", systemImage: vm.minRating == 0 ? "checkmark" : "")
             }
             Divider()
             ForEach(Array((1...5).reversed()), id: \.self) { stars in
                 Button {
-                    vm.minRating = stars
+                    applyFilterChange { vm.minRating = stars }
                 } label: {
                     Label("ab \(stars) \(stars == 1 ? "Stern" : "Sternen")",
                           systemImage: vm.minRating == stars ? "checkmark" : "")
@@ -357,16 +360,18 @@ struct LibraryView: View {
         return Menu {
             if isActive {
                 Button("Alle Genres zurücksetzen", role: .destructive) {
-                    vm.selectedGenres = []
+                    applyFilterChange { vm.selectedGenres = [] }
                 }
                 Divider()
             }
             ForEach(genres, id: \.self) { genre in
                 Button {
-                    if vm.selectedGenres.contains(genre) {
-                        vm.selectedGenres.remove(genre)
-                    } else {
-                        vm.selectedGenres.insert(genre)
+                    applyFilterChange {
+                        if vm.selectedGenres.contains(genre) {
+                            vm.selectedGenres.remove(genre)
+                        } else {
+                            vm.selectedGenres.insert(genre)
+                        }
                     }
                 } label: {
                     Label(genre, systemImage: vm.selectedGenres.contains(genre) ? "checkmark" : "")
@@ -421,6 +426,21 @@ struct LibraryView: View {
             color: isActive ? Theme.Colors.accentGlow.opacity(0.55) : .clear,
             radius: 10, y: 4
         )
+    }
+
+    /// Defer filter mutations to the next runloop tick so iOS can finish
+    /// the Menu's dismissal animation before the SwiftUI rebuild kicks in.
+    /// Wrapping in withTransaction(disablesAnimations) skips the diff
+    /// animation on the grid — the new selection feels instant; the new
+    /// posters load in the background as they arrive.
+    private func applyFilterChange(_ change: @escaping () -> Void) {
+        DispatchQueue.main.async {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                change()
+            }
+        }
     }
 
     /// Unique sorted genres harvested from the user's watched library — feeds

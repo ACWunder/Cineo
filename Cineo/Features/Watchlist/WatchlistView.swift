@@ -178,7 +178,13 @@ struct WatchlistView: View {
         return Menu {
             ForEach(MediaFilter.allCases) { option in
                 Button {
-                    mediaFilter = option
+                    DispatchQueue.main.async {
+                        var transaction = Transaction()
+                        transaction.disablesAnimations = true
+                        withTransaction(transaction) {
+                            mediaFilter = option
+                        }
+                    }
                 } label: {
                     Label(option.rawValue,
                           systemImage: mediaFilter == option ? "checkmark" : "")

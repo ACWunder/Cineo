@@ -172,12 +172,17 @@ struct DiscoverView: View {
         return Menu {
             ForEach(DiscoverViewModel.MediaFilter.allCases) { option in
                 Button {
-                    // Defer the actual mutation past the Menu's dismiss frame.
-                    // Setting it inline blocks the close animation on the same
-                    // run-loop tick as the ForEach/AsyncImage rebuild, which
-                    // is what froze the UI for ~2s.
+                    // Defer the mutation past the Menu's dismiss frame and
+                    // disable SwiftUI's diff animation so the grid swap
+                    // doesn't compete with the closing menu for main-thread
+                    // time. Selection feels instant; new posters fade in
+                    // as their decode finishes.
                     DispatchQueue.main.async {
-                        vm.filter = option
+                        var transaction = Transaction()
+                        transaction.disablesAnimations = true
+                        withTransaction(transaction) {
+                            vm.filter = option
+                        }
                     }
                 } label: {
                     Label(option.label,
