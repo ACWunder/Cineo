@@ -103,7 +103,7 @@ struct LibraryView: View {
                                     .buttonStyle(CineoPressStyle(scale: 0.97))
                                 }
                             }
-                            .padding(.horizontal, Theme.Spacing.md)
+                            .padding(.horizontal, Theme.Spacing.lg)
                             .padding(.bottom, Theme.Spacing.lg)
                         }
                     }
@@ -117,7 +117,7 @@ struct LibraryView: View {
                 VStack(spacing: 0) {
                     floatingSearchBar
                     filterStrip
-                        .padding(.horizontal, Theme.Spacing.md)
+                        .padding(.horizontal, Theme.Spacing.lg)
                         .frame(height: filterStripHeight)
                 }
                 .opacity(headerOpacity)
@@ -142,7 +142,7 @@ struct LibraryView: View {
             placeholder: "Film oder Serie hinzufügen …",
             focus: $searchFocused
         )
-        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.horizontal, Theme.Spacing.lg)
         .padding(.top, Theme.Spacing.xs)
     }
 
@@ -205,7 +205,7 @@ struct LibraryView: View {
             placeholder: "Film oder Serie hinzufügen …",
             focus: $searchFocused
         )
-        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.horizontal, Theme.Spacing.lg)
         .padding(.top, Theme.Spacing.xs)
     }
 
@@ -237,7 +237,7 @@ struct LibraryView: View {
                         }
                     }
                 }
-                .padding(.horizontal, Theme.Spacing.md)
+                .padding(.horizontal, Theme.Spacing.lg)
                 .padding(.vertical, Theme.Spacing.sm)
             }
         }
@@ -266,13 +266,16 @@ struct LibraryView: View {
     // MARK: - Filter strip
 
     private var filterStrip: some View {
-        HStack(spacing: Theme.Spacing.xs) {
+        HStack(spacing: 0) {
             sortMenu
+            Spacer(minLength: Theme.Spacing.xs)
             mediaTypeMenu
+            Spacer(minLength: Theme.Spacing.xs)
             ratingMenu
+            Spacer(minLength: Theme.Spacing.xs)
             genreMenu
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity)
     }
 
     private var sortMenu: some View {
