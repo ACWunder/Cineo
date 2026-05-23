@@ -13,12 +13,9 @@ struct LibraryView: View {
 
     @FocusState private var searchFocused: Bool
 
-    /// Vertical translation of the filter strip overlay.
-    /// 0 = fully visible; -filterStripHeight = fully hidden above the top.
-    /// We move it 1:1 with the user's scroll, like a website header that
-    /// glides out of the way as you scroll down and re-emerges on scroll up.
-    @State private var filterOffsetY: CGFloat = 0
-    @State private var lastScrollY: CGFloat = 0
+    /// Height the filter strip overlay occupies. Stays pinned to the top
+    /// of the grid; content scrolls *under* it because the strip has a
+    /// transparent background.
     private let filterStripHeight: CGFloat = 48
 
     private let columns = [GridItem(.adaptive(minimum: 168), spacing: Theme.Spacing.md)]
@@ -80,7 +77,8 @@ struct LibraryView: View {
             ZStack(alignment: .top) {
                 ScrollView {
                     VStack(spacing: 0) {
-                        // Reserved spacer where the filter strip floats above.
+                        // Reserved spacer that lets the first row of cells
+                        // start below the floating filter strip.
                         Color.clear.frame(height: filterStripHeight)
 
                         if watchedItems.isEmpty {
@@ -99,32 +97,14 @@ struct LibraryView: View {
                         }
                     }
                 }
-                .onScrollGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.contentOffset.y
-                } action: { oldValue, newValue in
-                    updateFilterOffset(old: oldValue, new: newValue)
-                }
 
+                // Stays pinned to the top, transparent background so the
+                // grid scrolls *under* the chips instead of being clipped
+                // by an opaque strip.
                 filterStrip
                     .padding(.horizontal, Theme.Spacing.md)
                     .frame(height: filterStripHeight)
-                    .background(Theme.Colors.background)
-                    .offset(y: filterOffsetY)
             }
-        }
-    }
-
-    /// Translate the filter strip 1:1 with the user's scroll. Scrolling
-    /// down nudges it up out of view; scrolling up brings it back. The
-    /// ScrollView's frame stays constant so there's no layout feedback
-    /// loop and no pause between drag and motion.
-    private func updateFilterOffset(old: CGFloat, new: CGFloat) {
-        guard new >= 0 else { return }   // ignore rubber-band over-scroll
-        let delta = new - old
-        let updated = filterOffsetY - delta
-        let clamped = max(-filterStripHeight, min(0, updated))
-        if abs(clamped - filterOffsetY) > 0.25 {
-            filterOffsetY = clamped
         }
     }
 
