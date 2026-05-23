@@ -262,16 +262,13 @@ struct LibraryView: View {
     // MARK: - Filter strip
 
     private var filterStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Theme.Spacing.xs) {
-                sortMenu
-                mediaTypeMenu
-                ratingMenu
-                genreMenu
-            }
-            .padding(.horizontal, Theme.Spacing.md)
+        HStack(spacing: Theme.Spacing.xs) {
+            sortMenu
+            mediaTypeMenu
+            ratingMenu
+            genreMenu
         }
-        .scrollClipDisabled()
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private var sortMenu: some View {
