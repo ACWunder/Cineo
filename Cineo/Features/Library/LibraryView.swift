@@ -409,26 +409,23 @@ struct LibraryView: View {
             .disabled(!isActive)
             Divider()
             ForEach(genres, id: \.self) { genre in
-                Button {
-                    if vm.selectedGenres.contains(genre) {
-                        vm.selectedGenres.remove(genre)
-                    } else {
-                        vm.selectedGenres.insert(genre)
+                // Toggle is iOS's native "checkable" menu item. The
+                // checkmark appears at the trailing edge when on; the
+                // trailing space is reserved by the menu either way,
+                // so the title text never shifts position when a row
+                // is toggled. Default (no selections) is "alle Genres"
+                // semantically — same as before — just none of the
+                // toggles are on.
+                Toggle(genre, isOn: Binding(
+                    get: { vm.selectedGenres.contains(genre) },
+                    set: { isOn in
+                        if isOn {
+                            vm.selectedGenres.insert(genre)
+                        } else {
+                            vm.selectedGenres.remove(genre)
+                        }
                     }
-                } label: {
-                    // Custom HStack so the checkmark sits on the right
-                    // and is ALWAYS rendered (just hidden when off).
-                    // That keeps the text glued to the leading edge and
-                    // every genre row in the same place when its
-                    // checkmark toggles — no horizontal jump.
-                    HStack {
-                        Text(genre)
-                        Spacer()
-                        Image(systemName: "checkmark")
-                            .font(.caption2)
-                            .opacity(vm.selectedGenres.contains(genre) ? 1 : 0)
-                    }
-                }
+                ))
                 .menuActionDismissBehavior(.disabled)
             }
         } label: {
