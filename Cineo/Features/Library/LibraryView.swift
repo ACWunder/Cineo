@@ -12,12 +12,14 @@ struct LibraryView: View {
     @State private var pendingAdd: TMDBSearchMultiResult?
 
     @FocusState private var searchFocused: Bool
-    @State private var showFilters: Bool = true
-    /// Time of the last filter-strip toggle. Toggling shifts the ScrollView's
-    /// layout, which re-fires onScrollGeometryChange with bouncy offsets —
-    /// we lock further toggles out for a short window so it doesn't flicker
-    /// during a fast initial swipe.
-    @State private var lastFilterToggle: Date = .distantPast
+
+    /// Vertical translation of the filter strip overlay.
+    /// 0 = fully visible; -filterStripHeight = fully hidden above the top.
+    /// We move it 1:1 with the user's scroll, like a website header that
+    /// glides out of the way as you scroll down and re-emerges on scroll up.
+    @State private var filterOffsetY: CGFloat = 0
+    @State private var lastScrollY: CGFloat = 0
+    private let filterStripHeight: CGFloat = 40
 
     private let columns = [GridItem(.adaptive(minimum: 168), spacing: Theme.Spacing.md)]
 
@@ -72,66 +74,57 @@ struct LibraryView: View {
                 message: "Markiere Filme oder Serien als gesehen — sie landen dann hier mit deiner Bewertung."
             )
         } else {
-            VStack(spacing: 0) {
-                if showFilters {
-                    filterStrip
-                        .padding(.top, Theme.Spacing.xs)
-                        .padding(.bottom, Theme.Spacing.sm)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-
+            // Filter strip lives as an overlay above the ScrollView so its
+            // visibility never changes the underlying layout — that was the
+            // source of the jitter/pause.
+            ZStack(alignment: .top) {
                 ScrollView {
-                    if watchedItems.isEmpty {
-                        filterEmptyState
-                    } else {
-                        LazyVGrid(columns: columns, spacing: Theme.Spacing.md) {
-                            ForEach(watchedItems) { item in
-                                NavigationLink(value: item) {
-                                    LibraryGridCell(item: item)
+                    VStack(spacing: 0) {
+                        // Reserved spacer where the filter strip floats above.
+                        Color.clear.frame(height: filterStripHeight)
+
+                        if watchedItems.isEmpty {
+                            filterEmptyState
+                        } else {
+                            LazyVGrid(columns: columns, spacing: Theme.Spacing.md) {
+                                ForEach(watchedItems) { item in
+                                    NavigationLink(value: item) {
+                                        LibraryGridCell(item: item)
+                                    }
+                                    .buttonStyle(CineoPressStyle(scale: 0.97))
                                 }
-                                .buttonStyle(CineoPressStyle(scale: 0.97))
                             }
+                            .padding(.horizontal, Theme.Spacing.md)
+                            .padding(.bottom, Theme.Spacing.lg)
                         }
-                        .padding(.horizontal, Theme.Spacing.md)
-                        .padding(.top, Theme.Spacing.xs)
-                        .padding(.bottom, Theme.Spacing.lg)
                     }
                 }
                 .onScrollGeometryChange(for: CGFloat.self) { proxy in
                     proxy.contentOffset.y
                 } action: { oldValue, newValue in
-                    handleScroll(old: oldValue, new: newValue)
+                    updateFilterOffset(old: oldValue, new: newValue)
                 }
+
+                filterStrip
+                    .padding(.horizontal, Theme.Spacing.md)
+                    .frame(height: filterStripHeight)
+                    .background(Theme.Colors.background)
+                    .offset(y: filterOffsetY)
             }
         }
     }
 
-    /// Hide the filter strip while scrolling down; reveal it again on any
-    /// upward gesture, even mid-grid — so the user doesn't have to scroll
-    /// all the way to the top to change a filter.
-    private func handleScroll(old: CGFloat, new: CGFloat) {
-        // Near the very top → always show.
-        if new < 40 {
-            if !showFilters {
-                withAnimation(.easeOut(duration: 0.24)) { showFilters = true }
-                lastFilterToggle = Date()
-            }
-            return
-        }
-
-        // Lock out toggles for 0.4s after the last one so the layout
-        // settlement (which re-fires onScrollGeometryChange) can't bounce
-        // the strip back and forth.
-        guard Date().timeIntervalSince(lastFilterToggle) > 0.4 else { return }
-
+    /// Translate the filter strip 1:1 with the user's scroll. Scrolling
+    /// down nudges it up out of view; scrolling up brings it back. The
+    /// ScrollView's frame stays constant so there's no layout feedback
+    /// loop and no pause between drag and motion.
+    private func updateFilterOffset(old: CGFloat, new: CGFloat) {
+        guard new >= 0 else { return }   // ignore rubber-band over-scroll
         let delta = new - old
-        // Generous thresholds — small jitters in offset shouldn't toggle.
-        if delta > 14, showFilters {
-            withAnimation(.easeOut(duration: 0.24)) { showFilters = false }
-            lastFilterToggle = Date()
-        } else if delta < -14, !showFilters {
-            withAnimation(.easeOut(duration: 0.24)) { showFilters = true }
-            lastFilterToggle = Date()
+        let updated = filterOffsetY - delta
+        let clamped = max(-filterStripHeight, min(0, updated))
+        if abs(clamped - filterOffsetY) > 0.25 {
+            filterOffsetY = clamped
         }
     }
 
@@ -182,7 +175,7 @@ struct LibraryView: View {
         )
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.top, Theme.Spacing.xs)
-        .padding(.bottom, Theme.Spacing.sm)
+        .padding(.bottom, Theme.Spacing.xxs)
     }
 
     @ViewBuilder
