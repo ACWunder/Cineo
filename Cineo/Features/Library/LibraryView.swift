@@ -451,41 +451,52 @@ struct LibraryView: View {
 private struct LibraryGridCell: View {
     let item: LibraryItem
 
+    /// Fixed height for the text block under each poster. Sized to fit a
+    /// 2-line title + meta line; shorter titles get an invisible spacer
+    /// at the bottom so the total cell height (and therefore the cover
+    /// spacing in the grid) stays identical for every entry.
+    private let textBlockHeight: CGFloat = 62
+
     var body: some View {
-        // Every cell follows the exact same layout: poster, then always
-        // two reserved title lines, then the meta row. Short titles just
-        // leave the second line blank — the trade-off is a uniform grid
-        // where every cover is the same size.
         VStack(alignment: .center, spacing: 0) {
             PosterView(path: item.posterPath, size: "w342", radius: Theme.Radius.md)
                 .frame(maxWidth: .infinity)
 
-            Text(item.title)
-                .font(Theme.Typography.callout.weight(.semibold))
-                .foregroundStyle(Theme.Colors.textPrimary)
-                .lineLimit(2, reservesSpace: true)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity)
-                .padding(.top, Theme.Spacing.xs)
+            // Title + meta stack top-aligned inside a fixed-height frame.
+            // With a 1-line title the meta row sits directly under it; the
+            // leftover space lands at the bottom as a Spacer so the cell
+            // height itself stays constant.
+            VStack(spacing: 0) {
+                Text(item.title)
+                    .font(Theme.Typography.callout.weight(.semibold))
+                    .foregroundStyle(Theme.Colors.textPrimary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity)
 
-            HStack(spacing: 6) {
-                if !item.year.isEmpty {
-                    Text(item.year)
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.textSecondary)
+                HStack(spacing: 6) {
+                    if !item.year.isEmpty {
+                        Text(item.year)
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                    }
+                    if let r = item.rating, r > 0 {
+                        StarRatingDisplay(rating: r, size: 11)
+                    } else {
+                        Text("—")
+                            .font(Theme.Typography.caption)
+                            .foregroundStyle(Theme.Colors.textTertiary)
+                    }
                 }
-                if let r = item.rating, r > 0 {
-                    StarRatingDisplay(rating: r, size: 11)
-                } else {
-                    Text("—")
-                        .font(Theme.Typography.caption)
-                        .foregroundStyle(Theme.Colors.textTertiary)
-                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 14)
+                .padding(.top, Theme.Spacing.xxs)
+
+                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 14)
-            .padding(.top, Theme.Spacing.xxs)
+            .frame(height: textBlockHeight, alignment: .top)
+            .padding(.top, Theme.Spacing.xs)
         }
     }
 }
