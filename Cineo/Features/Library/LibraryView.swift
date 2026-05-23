@@ -430,17 +430,8 @@ struct LibraryView: View {
 
     /// Defer filter mutations to the next runloop tick so iOS can finish
     /// the Menu's dismissal animation before the SwiftUI rebuild kicks in.
-    /// Wrapping in withTransaction(disablesAnimations) skips the diff
-    /// animation on the grid — the new selection feels instant; the new
-    /// posters load in the background as they arrive.
     private func applyFilterChange(_ change: @escaping () -> Void) {
-        DispatchQueue.main.async {
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                change()
-            }
-        }
+        DispatchQueue.main.async(execute: change)
     }
 
     /// Unique sorted genres harvested from the user's watched library — feeds

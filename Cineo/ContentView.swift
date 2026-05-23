@@ -15,20 +15,10 @@ struct ContentView: View {
                 MainTabView()
             }
 
-            // Pre-render the rating overlay's view tree once invisible so
-            // the first real rating doesn't pay SwiftUI's initial layout +
-            // compile cost. 1×1, fully transparent, hit-testing off.
-            RatingOverlay(
-                title: "",
-                posterPath: nil,
-                onRate: { _ in },
-                onSkip: {},
-                onCancel: {}
-            )
-            .frame(width: 1, height: 1)
-            .opacity(0)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
+            // Pre-render heavy view trees once invisible so the first real
+            // use doesn't pay SwiftUI's initial layout + compile cost.
+            // 1×1, fully transparent, no hit-testing.
+            prewarmViews
         }
         .preferredColorScheme(.dark)
         .tint(Theme.Colors.accent)
@@ -39,5 +29,34 @@ struct ContentView: View {
             HapticEngine.shared.prepare()
             KeyboardWarmer.warm()
         }
+    }
+
+    /// Invisible 1×1 render of the views with the heaviest SwiftUI compile
+    /// cost. Without this the user pays the cost on their first interaction
+    /// (e.g. tapping a filter chip) — after an app restart these paths are
+    /// cached so subsequent runs feel fast. Touching them here at launch
+    /// gets the cache warm before the user can ever notice.
+    private var prewarmViews: some View {
+        VStack(spacing: 0) {
+            // Rating overlay — pre-mounts the full-screen rating UI.
+            RatingOverlay(
+                title: "",
+                posterPath: nil,
+                onRate: { _ in },
+                onSkip: {},
+                onCancel: {}
+            )
+            // A Menu — pre-mounts iOS's menu/popover subsystem so the first
+            // filter / sort tap doesn't stutter while UIMenu wakes up.
+            Menu {
+                Button("warm") {}
+            } label: {
+                Color.clear
+            }
+        }
+        .frame(width: 1, height: 1)
+        .opacity(0)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
