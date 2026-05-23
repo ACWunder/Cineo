@@ -204,6 +204,8 @@ struct DiscoverView: View {
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
             Text(text)
                 .font(Theme.Typography.footnote.weight(.semibold))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
             Image(systemName: "chevron.down")
                 .font(.system(size: 9, weight: .bold, design: .rounded))
                 .opacity(0.7)

@@ -396,6 +396,7 @@ struct LibraryView: View {
             Text(text)
                 .font(Theme.Typography.caption.weight(.semibold))
                 .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
             Image(systemName: "chevron.down")
                 .font(.system(size: 8, weight: .bold, design: .rounded))
                 .opacity(0.7)
