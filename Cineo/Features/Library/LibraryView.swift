@@ -19,7 +19,7 @@ struct LibraryView: View {
     /// glides out of the way as you scroll down and re-emerges on scroll up.
     @State private var filterOffsetY: CGFloat = 0
     @State private var lastScrollY: CGFloat = 0
-    private let filterStripHeight: CGFloat = 40
+    private let filterStripHeight: CGFloat = 48
 
     private let columns = [GridItem(.adaptive(minimum: 168), spacing: Theme.Spacing.md)]
 
@@ -175,7 +175,7 @@ struct LibraryView: View {
         )
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.top, Theme.Spacing.xs)
-        .padding(.bottom, Theme.Spacing.xxs)
+        .padding(.bottom, Theme.Spacing.xs)
     }
 
     @ViewBuilder
