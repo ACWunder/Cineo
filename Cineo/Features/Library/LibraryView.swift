@@ -16,9 +16,12 @@ struct LibraryView: View {
     /// Heights of the two pieces of the floating header overlay.
     private let searchBarHeight: CGFloat = 52  // xs(8) + field(44)
     private let filterStripHeight: CGFloat = 48
+    /// Extra breathing room below the filter strip — keeps the first
+    /// row of posters from sitting flush with the pills.
+    private let filterStripBottomGap: CGFloat = 10
     /// Total reserved space at the top of the scroll content when both
     /// pieces are visible (i.e. when not actively searching).
-    private var headerHeight: CGFloat { searchBarHeight + filterStripHeight }
+    private var headerHeight: CGFloat { searchBarHeight + filterStripHeight + filterStripBottomGap }
 
     /// 0 = header fully visible; -headerHeight = header fully scrolled
     /// out of view. Drives both the slide and the fade. The header

@@ -39,7 +39,7 @@ struct LibraryDetailView: View {
                 cover
                 titleBlock
                 if !item.genres.isEmpty { genrePills }
-                if isInLibrary { ratingRow }
+                ratingRow
                 if !item.overview.isEmpty { description }
                 trailerPill
                 castRow
@@ -246,12 +246,37 @@ struct LibraryDetailView: View {
     private var ratingRow: some View {
         StarRatingView(rating: $rating, size: 30)
             .onChange(of: rating) { _, newValue in
-                Task {
-                    await library.updateRating(tmdbId: item.tmdbId, rating: newValue > 0 ? newValue : nil)
-                }
+                handleRatingChange(newValue)
             }
             .padding(.vertical, Theme.Spacing.xs)
             .frame(maxWidth: .infinity)
+    }
+
+    /// Stars tapped from any of the three modes:
+    /// - .library / .watchlist: item exists, just update the rating.
+    /// - .discover: item isn't in the library yet — write a fresh entry
+    ///   with watched=true and the chosen rating. The view stays open
+    ///   so the user can keep adjusting; the next tap will fall through
+    ///   to the .library branch because isInLibrary is true by then.
+    private func handleRatingChange(_ newValue: Double) {
+        let value: Double? = newValue > 0 ? newValue : nil
+        if isInLibrary {
+            Task { await library.updateRating(tmdbId: item.tmdbId, rating: value) }
+        } else {
+            let entry = LibraryItem(
+                tmdbId: item.tmdbId,
+                mediaType: item.mediaType,
+                title: item.title,
+                overview: item.overview,
+                year: item.year,
+                posterPath: item.posterPath,
+                genres: item.genres,
+                rating: value,
+                watched: true,
+                addedAt: Date()
+            )
+            Task { await library.add(entry) }
+        }
     }
 
     // MARK: - Description
