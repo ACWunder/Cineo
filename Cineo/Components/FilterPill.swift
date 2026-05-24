@@ -44,7 +44,7 @@ struct FilterPill: View {
                 Capsule()
                     .fill(Theme.Colors.accentSheen)
                     .blendMode(.plusLighter)
-                    .opacity(isActive ? 1 : 0)
+                    .opacity(isActive ? 0.35 : 0)
                     .allowsHitTesting(false)
             }
         )

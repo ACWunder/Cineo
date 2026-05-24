@@ -159,20 +159,20 @@ actor TMDBClient {
         return res
     }
 
-    func recommendations(for id: Int, mediaType: MediaType) async throws -> [TMDBRecommendation] {
+    func recommendations(for id: Int, mediaType: MediaType, page: Int = 1) async throws -> [TMDBRecommendation] {
         let path = mediaType == .movie ? "/movie/\(id)/recommendations" : "/tv/\(id)/recommendations"
-        let res: TMDBRecommendationsResponse = try await get(path: path, query: ["language": "de-DE", "page": "1"])
+        let res: TMDBRecommendationsResponse = try await get(path: path, query: ["language": "de-DE", "page": String(page)])
         return res.results
     }
 
-    func similar(for id: Int, mediaType: MediaType) async throws -> [TMDBRecommendation] {
+    func similar(for id: Int, mediaType: MediaType, page: Int = 1) async throws -> [TMDBRecommendation] {
         let path = mediaType == .movie ? "/movie/\(id)/similar" : "/tv/\(id)/similar"
-        let res: TMDBRecommendationsResponse = try await get(path: path, query: ["language": "de-DE", "page": "1"])
+        let res: TMDBRecommendationsResponse = try await get(path: path, query: ["language": "de-DE", "page": String(page)])
         return res.results
     }
 
-    func trending() async throws -> [TMDBSearchMultiResult] {
-        let res: TMDBSearchMultiResponse = try await get(path: "/trending/all/week", query: ["language": "de-DE"])
+    func trending(page: Int = 1) async throws -> [TMDBSearchMultiResult] {
+        let res: TMDBSearchMultiResponse = try await get(path: "/trending/all/week", query: ["language": "de-DE", "page": String(page)])
         return res.results.filter { $0.resolvedMediaType != nil }
     }
 

@@ -105,6 +105,16 @@ struct DiscoverView: View {
             viewModel.excludedGenres = []
             Task { await reload() }
         }
+        .onChange(of: viewModel.stack.count) { _, newCount in
+            // Low-water mark: when the visible stack thins out, pull the
+            // next page in the background so the user never hits an empty
+            // deck mid-swipe. Skips itself while a load is in flight or
+            // the underlying pool is exhausted (no more pages on TMDB).
+            guard didInitialLoad else { return }
+            guard newCount <= 5 else { return }
+            guard !viewModel.isLoadingMore, !viewModel.isExhausted else { return }
+            Task { await loadMore() }
+        }
         // Intentionally *no* onChange for dismissed: dismissing a card must
         // never trigger a recompute. popTop already removes it from the
         // local pool, and reloading here could race the snapshot listener
@@ -172,6 +182,7 @@ struct DiscoverView: View {
                         Capsule().fill(Theme.Colors.accentGradient)
                         Capsule().fill(Theme.Colors.accentSheen)
                             .blendMode(.plusLighter)
+                            .opacity(0.35)
                             .allowsHitTesting(false)
                     }
                     .matchedGeometryEffect(id: "activeSource", in: sourceToggleNS)
@@ -653,6 +664,28 @@ struct DiscoverView: View {
         }
     }
 
+    /// Build the `[tmdbId: Date]` snapshot of dismissals from Firestore
+    /// items + session-local set. Shared by `reload` and `loadMore` so the
+    /// revival/exclusion logic in the VM sees identical inputs.
+    private func currentDismissedAtById() -> [Int: Date] {
+        let now = Date()
+        var rec: [Int: Date] = [:]
+        for item in dismissed.items {
+            rec[item.tmdbId] = item.dismissedAt ?? now
+        }
+        for id in locallyDismissed where rec[id] == nil {
+            rec[id] = now
+        }
+        return rec
+    }
+
+    private func loadMore() async {
+        await viewModel.loadMore(
+            library: library.items,
+            dismissedAtById: currentDismissedAtById()
+        )
+    }
+
     private func reload(preserveVisible: Int = 0) async {
         let libraryItems = library.items
         // Union with the session-local set so freshly-dismissed cards
@@ -666,14 +699,7 @@ struct DiscoverView: View {
         // `Date()` (just now); persisted items use whatever Firestore
         // returned (older docs without the field are treated as recent
         // so legacy dismissals don't suddenly flood back in).
-        let now = Date()
-        var dismissedAtById: [Int: Date] = [:]
-        for item in dismissed.items {
-            dismissedAtById[item.tmdbId] = item.dismissedAt ?? now
-        }
-        for id in locallyDismissed where dismissedAtById[id] == nil {
-            dismissedAtById[id] = now
-        }
+        let dismissedAtById = currentDismissedAtById()
         await viewModel.reload(
             library: libraryItems,
             dismissedAtById: dismissedAtById,

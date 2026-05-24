@@ -71,6 +71,15 @@ final class DiscoverViewModel {
     var error: String?
     var emptyLibrary: Bool = false
 
+    /// Pagination state. Reset on every full `reload`; mutated by `loadMore`.
+    /// `seenIds` is the dedupe shield — any candidate ever placed into the
+    /// pool stays out of later pages, so swiped/popped cards never re-appear.
+    private(set) var isLoadingMore: Bool = false
+    private(set) var isExhausted: Bool = false
+    private var seenIds: Set<Int> = []
+    private var nextLibraryPage: Int = 2
+    private var nextTrendingPage: Int = 2
+
     private let client = TMDBClient.shared
 
     /// Unique genres present in the current pool — used to populate the
@@ -113,6 +122,12 @@ final class DiscoverViewModel {
         defer { isLoading = false }
         error = nil
         emptyLibrary = false
+
+        // Fresh pool → fresh pagination state.
+        seenIds = []
+        nextLibraryPage = 2
+        nextTrendingPage = 2
+        isExhausted = false
 
         try? await client.ensureGenresLoaded()
 
@@ -206,7 +221,9 @@ final class DiscoverViewModel {
             ))
         }
 
-        allCandidates = mergePreserved(preservedHead, into: candidates)
+        let merged = mergePreserved(preservedHead, into: candidates)
+        allCandidates = merged
+        seenIds = Set(merged.map(\.id))
         applyFilter()
     }
 
@@ -232,11 +249,144 @@ final class DiscoverViewModel {
                     voteAverage: res.voteAverage ?? 0
                 ))
             }
-            allCandidates = mergePreserved(preservedHead, into: candidates)
+            let merged = mergePreserved(preservedHead, into: candidates)
+            allCandidates = merged
+            seenIds = Set(merged.map(\.id))
             applyFilter()
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    // MARK: - Pagination
+
+    /// Pull the next page in the current source mode and append non-duplicate,
+    /// non-library, non-dismissed candidates to the pool. Triggered by the
+    /// view when the visible stack drops below its low-water mark.
+    func loadMore(library: [LibraryItem], dismissedAtById: [Int: Date]) async {
+        guard !isLoadingMore, !isExhausted else { return }
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+
+        let libraryIds = Set(library.map(\.tmdbId))
+        let dismissedIds = Set(dismissedAtById.keys)
+
+        switch sourceMode {
+        case .library:
+            await loadMoreLibrary(library: library, libraryIds: libraryIds, dismissedIds: dismissedIds)
+        case .trending:
+            await loadMoreTrending(libraryIds: libraryIds, dismissedIds: dismissedIds)
+        }
+    }
+
+    private func loadMoreLibrary(library: [LibraryItem],
+                                 libraryIds: Set<Int>,
+                                 dismissedIds: Set<Int>) async {
+        let ratedTitles = library.filter { $0.rating != nil && $0.rating != 0 }
+        guard !ratedTitles.isEmpty else { isExhausted = true; return }
+
+        let page = nextLibraryPage
+        var scores: [Int: Double] = [:]
+        var seen: [Int: TMDBRecommendation] = [:]
+        var typeOf: [Int: MediaType] = [:]
+
+        for item in ratedTitles {
+            let weight = Double(item.rating ?? 0)
+            guard weight > 0 else { continue }
+            async let recs = (try? client.recommendations(for: item.tmdbId, mediaType: item.mediaType, page: page)) ?? []
+            async let sims = (try? client.similar(for: item.tmdbId, mediaType: item.mediaType, page: page)) ?? []
+            let combined = await (recs + sims)
+
+            for rec in combined {
+                // Pagination excludes every dismissal regardless of age —
+                // the 7-day revival only fires on the *initial* reload via
+                // the top-3 rule. Append-time isn't where revivals belong.
+                if libraryIds.contains(rec.id) { continue }
+                if dismissedIds.contains(rec.id) { continue }
+                if seenIds.contains(rec.id) { continue }
+                let mtRaw = rec.mediaType ?? item.mediaType.rawValue
+                guard let mt = MediaType(rawValue: mtRaw) else { continue }
+                let vote = rec.voteAverage ?? 0
+                let score = weight * (vote / 10.0)
+                scores[rec.id, default: 0] += score
+                seen[rec.id] = rec
+                typeOf[rec.id] = mt
+            }
+        }
+
+        if scores.isEmpty {
+            isExhausted = true
+            return
+        }
+
+        let ordered = scores.sorted(by: { $0.value > $1.value })
+        var fresh: [Candidate] = []
+        for entry in ordered {
+            guard let rec = seen[entry.key], let mt = typeOf[entry.key] else { continue }
+            let genres = await client.resolveGenres(ids: rec.genreIds, mediaType: mt)
+            fresh.append(Candidate(
+                tmdbId: rec.id,
+                mediaType: mt,
+                title: rec.displayTitle,
+                year: rec.year,
+                overview: rec.overview ?? "",
+                posterPath: rec.posterPath,
+                genres: genres,
+                voteAverage: rec.voteAverage ?? 0
+            ))
+        }
+
+        appendToPool(fresh)
+        nextLibraryPage += 1
+    }
+
+    private func loadMoreTrending(libraryIds: Set<Int>, dismissedIds: Set<Int>) async {
+        let page = nextTrendingPage
+        let results: [TMDBSearchMultiResult]
+        do {
+            results = try await client.trending(page: page)
+        } catch {
+            self.error = error.localizedDescription
+            return
+        }
+
+        var fresh: [Candidate] = []
+        for res in results {
+            guard let mt = res.resolvedMediaType else { continue }
+            if libraryIds.contains(res.id) { continue }
+            if dismissedIds.contains(res.id) { continue }
+            if seenIds.contains(res.id) { continue }
+            let genres = await client.resolveGenres(ids: res.genreIds, mediaType: mt)
+            fresh.append(Candidate(
+                tmdbId: res.id,
+                mediaType: mt,
+                title: res.displayTitle,
+                year: res.year,
+                overview: res.overview ?? "",
+                posterPath: res.posterPath,
+                genres: genres,
+                voteAverage: res.voteAverage ?? 0
+            ))
+        }
+
+        if fresh.isEmpty {
+            isExhausted = true
+            return
+        }
+
+        appendToPool(fresh)
+        nextTrendingPage += 1
+    }
+
+    private func appendToPool(_ fresh: [Candidate]) {
+        guard !fresh.isEmpty else { return }
+        // Append rather than re-sort: the user is mid-deck, the existing
+        // head must stay rock-stable. New cards land at the tail.
+        var updated = allCandidates
+        updated.append(contentsOf: fresh)
+        allCandidates = updated
+        for c in fresh { seenIds.insert(c.id) }
+        applyFilter()
     }
 
     /// Keeps every card the user can currently see in place. The recomputation
