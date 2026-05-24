@@ -38,6 +38,7 @@ struct LibraryDetailView: View {
             VStack(spacing: Theme.Spacing.lg) {
                 cover
                 titleBlock
+                providerRow
                 if !item.genres.isEmpty { genrePills }
                 ratingRow
                 if !item.overview.isEmpty { description }
@@ -221,6 +222,41 @@ struct LibraryDetailView: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Streaming providers
+
+    @ViewBuilder
+    private var providerRow: some View {
+        if let providers = extras?.providers, !providers.isEmpty {
+            HStack(spacing: 10) {
+                ForEach(providers) { p in
+                    AsyncImage(url: TMDB.providerLogoURL(p.logoPath, size: "w92")) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().scaledToFill()
+                        default:
+                            Theme.Colors.surfaceElevated
+                        }
+                    }
+                    .frame(width: 26, height: 26)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                    )
+                    .accessibilityLabel(p.name)
+                }
+            }
+            .opacity(0.92)
+            .frame(maxWidth: .infinity)
+            // Pull the row tighter against the genre pills above and the
+            // rating stars below — the outer VStack uses Spacing.lg (24pt)
+            // between children, which feels like too much air for the
+            // discreet logo strip.
+            .padding(.top, -8)
+            .padding(.bottom, -8)
+        }
     }
 
     // MARK: - Cast

@@ -284,18 +284,61 @@ actor TMDBClient {
         // Subscription flat-rate only — rent / buy / ad-supported listings tend
         // to be obscure regional providers users don't recognise.
         let pool = region.flatrate ?? []
-        return pool
-            .filter { $0.logoPath != nil }                                  // skip logo-less entries
-            .filter { ($0.displayPriority ?? Int.max) < 30 }                // skip long-tail providers
-            .sorted(by: { ($0.displayPriority ?? Int.max) < ($1.displayPriority ?? Int.max) })
-            .prefix(4)
-            .map {
-                DetailExtras.Provider(
-                    id: $0.providerId,
-                    name: $0.providerName,
-                    logoPath: $0.logoPath
-                )
+
+        // Brand buckets. TMDB ships multiple listings per service ("Netflix",
+        // "Netflix Standard with Ads", "Netflix Kids", "WOW", "WOW by Prime
+        // Video" …) — we collapse them all into one logo per brand. The
+        // bucket order also determines display order in the row.
+        let brands: [(brand: String, needles: [String])] = [
+            ("Netflix",     ["netflix"]),
+            ("Prime Video", ["prime video"]),
+            ("Disney+",     ["disney"]),
+            ("Apple TV+",   ["apple tv"]),
+            ("Paramount+",  ["paramount"]),
+            ("WOW",         ["wow"]),
+            ("Sky",         ["sky go", "sky x"]),
+            ("RTL+",        ["rtl+", "rtl plus"]),
+            ("Joyn",        ["joyn"])
+        ]
+
+        // Hard exclusions — variants we never want, regardless of which brand
+        // they'd otherwise belong to. Handles ad tiers, kids tiers and
+        // Amazon's resold sub-channels in one pass.
+        let excludeMarkers = [
+            "with ads",
+            "ad-supported",
+            "amazon channel",
+            "by prime video",
+            "kids"
+        ]
+
+        func brandFor(_ name: String) -> String? {
+            let lower = name.lowercased()
+            for marker in excludeMarkers where lower.contains(marker) { return nil }
+            for entry in brands {
+                if entry.needles.contains(where: { lower.contains($0) }) {
+                    return entry.brand
+                }
             }
+            return nil
+        }
+
+        let sorted = pool
+            .filter { $0.logoPath != nil }
+            .sorted(by: { ($0.displayPriority ?? Int.max) < ($1.displayPriority ?? Int.max) })
+
+        var seenBrands = Set<String>()
+        var result: [DetailExtras.Provider] = []
+        for p in sorted {
+            guard let brand = brandFor(p.providerName), !seenBrands.contains(brand) else { continue }
+            seenBrands.insert(brand)
+            result.append(DetailExtras.Provider(
+                id: p.providerId,
+                name: p.providerName,
+                logoPath: p.logoPath
+            ))
+        }
+        return result
     }
 
     // MARK: - Generic GET
