@@ -80,7 +80,29 @@ final class DiscoverViewModel {
     private var nextLibraryPage: Int = 2
     private var nextTrendingPage: Int = 2
 
+    /// Bumped at the start of every full reload. Any reload that finishes
+    /// while a newer one is already in flight discards its result, so rapid
+    /// toggle taps always converge on the latest selection's data.
+    private var reloadGeneration: Int = 0
+
     private let client = TMDBClient.shared
+
+    /// Filter out titles that aren't written in the Latin alphabet —
+    /// Japanese / Chinese / Korean / Arabic / Devanagari / Thai / Hebrew /
+    /// Cyrillic etc. all get dropped. Diacritics for Western European
+    /// languages (é, ø, ñ, …) and Vietnamese (Latin Extended Additional)
+    /// stay in. A title with zero alphabetic characters (rare, e.g. "404")
+    /// is allowed through.
+    private nonisolated static func isLatinTitle(_ title: String) -> Bool {
+        for scalar in title.unicodeScalars {
+            guard scalar.properties.isAlphabetic else { continue }
+            let v = scalar.value
+            if v <= 0x024F { continue }                       // Basic Latin + Latin-1 + Extended A/B
+            if v >= 0x1E00 && v <= 0x1EFF { continue }        // Latin Extended Additional
+            return false
+        }
+        return true
+    }
 
     /// Unique genres present in the current pool — used to populate the
     /// genre menu. Empty until a reload has run.
@@ -118,10 +140,26 @@ final class DiscoverViewModel {
     func reload(library: [LibraryItem],
                 dismissedAtById: [Int: Date],
                 preserveVisible: Int = 0) async {
+        reloadGeneration += 1
+        let myGen = reloadGeneration
+
         isLoading = true
-        defer { isLoading = false }
         error = nil
         emptyLibrary = false
+
+        // Drop the visible deck on a fresh reload so the loading state
+        // takes over immediately instead of showing the previous mode's
+        // leftovers. The library-count path keeps `preserveVisible > 0`
+        // to hold the head stable while the pool reranks underneath.
+        //
+        // applyFilter() is required because allCandidates.didSet only
+        // rebuilds the type caches — `stack` (what the view binds to)
+        // wouldn't clear otherwise, and the user would keep seeing the
+        // old cards for the whole network round-trip.
+        if preserveVisible == 0 {
+            allCandidates = []
+            applyFilter()
+        }
 
         // Fresh pool → fresh pagination state.
         seenIds = []
@@ -149,13 +187,13 @@ final class DiscoverViewModel {
         // come into it.
         if sourceMode == .trending {
             emptyLibrary = false
-            await loadTrendingFallback(libraryIds: libraryIds, dismissedIds: Set(dismissedAtById.keys), preservedHead: preservedHead)
+            await loadTrendingFallback(libraryIds: libraryIds, dismissedAtById: dismissedAtById, preservedHead: preservedHead, generation: myGen)
             return
         }
 
         if ratedTitles.isEmpty {
             emptyLibrary = library.isEmpty
-            await loadTrendingFallback(libraryIds: libraryIds, dismissedIds: Set(dismissedAtById.keys), preservedHead: preservedHead)
+            await loadTrendingFallback(libraryIds: libraryIds, dismissedAtById: dismissedAtById, preservedHead: preservedHead, generation: myGen)
             return
         }
 
@@ -185,6 +223,7 @@ final class DiscoverViewModel {
                    now.timeIntervalSince(dAt) < revivalWindow {
                     continue
                 }
+                guard Self.isLatinTitle(rec.displayTitle) else { continue }
                 let mtRaw = rec.mediaType ?? item.mediaType.rawValue
                 guard let mt = MediaType(rawValue: mtRaw) else { continue }
 
@@ -221,24 +260,62 @@ final class DiscoverViewModel {
             ))
         }
 
+        // A newer reload has bumped the generation — drop our work so the
+        // user only sees the latest selection's pool, never an in-flight
+        // stale one bleeding into the view.
+        guard myGen == reloadGeneration else { return }
+
         let merged = mergePreserved(preservedHead, into: candidates)
         allCandidates = merged
         seenIds = Set(merged.map(\.id))
         applyFilter()
+        isLoading = false
     }
 
     private func loadTrendingFallback(libraryIds: Set<Int>,
-                                      dismissedIds: Set<Int>,
-                                      preservedHead: [Candidate] = []) async {
-        do {
-            let trending = try await client.trending()
-            var candidates: [Candidate] = []
+                                      dismissedAtById: [Int: Date],
+                                      preservedHead: [Candidate] = [],
+                                      generation: Int) async {
+        // Trending uses a *time-windowed* dismissal rule, not a hard
+        // permanent block: anything dismissed within the last 7 days
+        // stays out, but older dismissals are eligible again so the
+        // "Angesagt" deck always cycles back to fresh content. Walk
+        // forward through pages until we collect at least one candidate
+        // or hit a page TMDB returns empty (true exhaustion).
+        let now = Date()
+        let revivalWindow: TimeInterval = 7 * 24 * 3600
+        let maxAttempts = 5
+        var collected: [Candidate] = []
+
+        for _ in 0..<maxAttempts {
+            let page = nextTrendingPage
+            let trending: [TMDBSearchMultiResult]
+            do {
+                trending = try await client.trending(page: page)
+            } catch {
+                guard generation == reloadGeneration else { return }
+                self.error = error.localizedDescription
+                isLoading = false
+                return
+            }
+            guard generation == reloadGeneration else { return }
+
+            if trending.isEmpty {
+                isExhausted = true
+                break
+            }
+            nextTrendingPage += 1
+
             for res in trending {
                 guard let mt = res.resolvedMediaType else { continue }
                 if libraryIds.contains(res.id) { continue }
-                if dismissedIds.contains(res.id) { continue }
+                if let dAt = dismissedAtById[res.id],
+                   now.timeIntervalSince(dAt) < revivalWindow {
+                    continue
+                }
+                guard Self.isLatinTitle(res.displayTitle) else { continue }
                 let genres = await client.resolveGenres(ids: res.genreIds, mediaType: mt)
-                candidates.append(Candidate(
+                collected.append(Candidate(
                     tmdbId: res.id,
                     mediaType: mt,
                     title: res.displayTitle,
@@ -249,13 +326,17 @@ final class DiscoverViewModel {
                     voteAverage: res.voteAverage ?? 0
                 ))
             }
-            let merged = mergePreserved(preservedHead, into: candidates)
-            allCandidates = merged
-            seenIds = Set(merged.map(\.id))
-            applyFilter()
-        } catch {
-            self.error = error.localizedDescription
+            guard generation == reloadGeneration else { return }
+
+            if !collected.isEmpty { break }
         }
+
+        guard generation == reloadGeneration else { return }
+        let merged = mergePreserved(preservedHead, into: collected)
+        allCandidates = merged
+        seenIds = Set(merged.map(\.id))
+        applyFilter()
+        isLoading = false
     }
 
     // MARK: - Pagination
@@ -264,24 +345,37 @@ final class DiscoverViewModel {
     /// non-library, non-dismissed candidates to the pool. Triggered by the
     /// view when the visible stack drops below its low-water mark.
     func loadMore(library: [LibraryItem], dismissedAtById: [Int: Date]) async {
-        guard !isLoadingMore, !isExhausted else { return }
+        // Stay out of the way of a full reload — otherwise loadMore and
+        // reload race on the same allCandidates write, and the user can
+        // end up seeing the wrong mode's data.
+        guard !isLoading, !isLoadingMore, !isExhausted else { return }
         isLoadingMore = true
         defer { isLoadingMore = false }
 
+        // Capture the generation a full reload would bump. If the user
+        // toggles the source mid-pagination, the pool has been replaced
+        // and these results no longer belong to the visible deck.
+        let myGen = reloadGeneration
         let libraryIds = Set(library.map(\.tmdbId))
-        let dismissedIds = Set(dismissedAtById.keys)
 
         switch sourceMode {
         case .library:
-            await loadMoreLibrary(library: library, libraryIds: libraryIds, dismissedIds: dismissedIds)
+            // Library pagination keeps the strict block — appended tail
+            // shouldn't re-introduce dismissed cards (the 7-day revival
+            // only fires for the absolute top 3 of the initial reload).
+            let dismissedIds = Set(dismissedAtById.keys)
+            await loadMoreLibrary(library: library, libraryIds: libraryIds, dismissedIds: dismissedIds, generation: myGen)
         case .trending:
-            await loadMoreTrending(libraryIds: libraryIds, dismissedIds: dismissedIds)
+            // Trending pagination uses the same 7-day window as the
+            // initial trending pull — keeps the deck cycling.
+            await loadMoreTrending(libraryIds: libraryIds, dismissedAtById: dismissedAtById, generation: myGen)
         }
     }
 
     private func loadMoreLibrary(library: [LibraryItem],
                                  libraryIds: Set<Int>,
-                                 dismissedIds: Set<Int>) async {
+                                 dismissedIds: Set<Int>,
+                                 generation: Int) async {
         let ratedTitles = library.filter { $0.rating != nil && $0.rating != 0 }
         guard !ratedTitles.isEmpty else { isExhausted = true; return }
 
@@ -304,6 +398,7 @@ final class DiscoverViewModel {
                 if libraryIds.contains(rec.id) { continue }
                 if dismissedIds.contains(rec.id) { continue }
                 if seenIds.contains(rec.id) { continue }
+                guard Self.isLatinTitle(rec.displayTitle) else { continue }
                 let mtRaw = rec.mediaType ?? item.mediaType.rawValue
                 guard let mt = MediaType(rawValue: mtRaw) else { continue }
                 let vote = rec.voteAverage ?? 0
@@ -336,46 +431,66 @@ final class DiscoverViewModel {
             ))
         }
 
+        guard generation == reloadGeneration else { return }
         appendToPool(fresh)
         nextLibraryPage += 1
     }
 
-    private func loadMoreTrending(libraryIds: Set<Int>, dismissedIds: Set<Int>) async {
-        let page = nextTrendingPage
-        let results: [TMDBSearchMultiResult]
-        do {
-            results = try await client.trending(page: page)
-        } catch {
-            self.error = error.localizedDescription
-            return
-        }
-
+    private func loadMoreTrending(libraryIds: Set<Int>, dismissedAtById: [Int: Date], generation: Int) async {
+        // Same loop logic as loadTrendingFallback — if a page is fully
+        // filtered out, advance to the next instead of exhausting.
+        let now = Date()
+        let revivalWindow: TimeInterval = 7 * 24 * 3600
+        let maxAttempts = 5
         var fresh: [Candidate] = []
-        for res in results {
-            guard let mt = res.resolvedMediaType else { continue }
-            if libraryIds.contains(res.id) { continue }
-            if dismissedIds.contains(res.id) { continue }
-            if seenIds.contains(res.id) { continue }
-            let genres = await client.resolveGenres(ids: res.genreIds, mediaType: mt)
-            fresh.append(Candidate(
-                tmdbId: res.id,
-                mediaType: mt,
-                title: res.displayTitle,
-                year: res.year,
-                overview: res.overview ?? "",
-                posterPath: res.posterPath,
-                genres: genres,
-                voteAverage: res.voteAverage ?? 0
-            ))
+
+        for _ in 0..<maxAttempts {
+            let page = nextTrendingPage
+            let results: [TMDBSearchMultiResult]
+            do {
+                results = try await client.trending(page: page)
+            } catch {
+                self.error = error.localizedDescription
+                return
+            }
+            guard generation == reloadGeneration else { return }
+
+            if results.isEmpty {
+                isExhausted = true
+                break
+            }
+            nextTrendingPage += 1
+
+            for res in results {
+                guard let mt = res.resolvedMediaType else { continue }
+                if libraryIds.contains(res.id) { continue }
+                if seenIds.contains(res.id) { continue }
+                if let dAt = dismissedAtById[res.id],
+                   now.timeIntervalSince(dAt) < revivalWindow {
+                    continue
+                }
+                guard Self.isLatinTitle(res.displayTitle) else { continue }
+                let genres = await client.resolveGenres(ids: res.genreIds, mediaType: mt)
+                fresh.append(Candidate(
+                    tmdbId: res.id,
+                    mediaType: mt,
+                    title: res.displayTitle,
+                    year: res.year,
+                    overview: res.overview ?? "",
+                    posterPath: res.posterPath,
+                    genres: genres,
+                    voteAverage: res.voteAverage ?? 0
+                ))
+            }
+            guard generation == reloadGeneration else { return }
+
+            if !fresh.isEmpty { break }
         }
 
-        if fresh.isEmpty {
-            isExhausted = true
-            return
+        guard generation == reloadGeneration else { return }
+        if !fresh.isEmpty {
+            appendToPool(fresh)
         }
-
-        appendToPool(fresh)
-        nextTrendingPage += 1
     }
 
     private func appendToPool(_ fresh: [Candidate]) {

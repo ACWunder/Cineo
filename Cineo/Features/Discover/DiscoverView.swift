@@ -29,6 +29,11 @@ struct DiscoverView: View {
     /// Firestore write + snapshot listener round-trip.
     @State private var locallyDismissed: Set<Int> = []
 
+    /// Handle on the currently-running reload Task so a fresh source-mode
+    /// toggle can cancel the in-flight one — keeps URLSession calls from
+    /// burning bandwidth on data the user no longer wants.
+    @State private var currentReloadTask: Task<Void, Never>?
+
     /// Last few actions the user has performed on the deck, capped at
     /// `maxUndo`. Drives the back button in the top bar.
     @State private var undoStack: [UndoEntry] = []
@@ -88,7 +93,7 @@ struct DiscoverView: View {
                 // them out when the snapshot finally lands.
                 await waitForInitialSnapshots()
                 didInitialLoad = true
-                await reload()
+                startReload()
             }
         }
         .onChange(of: library.items.count) { _, _ in
@@ -96,14 +101,16 @@ struct DiscoverView: View {
             // but the top 5 cards stay rock-stable so the visible deck never
             // shuffles under the user.
             guard didInitialLoad else { return }
-            Task { await reload(preserveVisible: 5) }
+            startReload(preserveVisible: 5)
         }
         .onChange(of: viewModel.sourceMode) { _, _ in
             // Switching between "Für dich" and "Angesagt" swaps the entire
             // pool — refetch from scratch instead of preserving anything.
+            // Cancel the in-flight reload so URLSession drops the previous
+            // mode's calls and the user's latest tap wins.
             guard didInitialLoad else { return }
             viewModel.excludedGenres = []
-            Task { await reload() }
+            startReload()
         }
         .onChange(of: viewModel.stack.count) { _, newCount in
             // Low-water mark: when the visible stack thins out, pull the
@@ -355,7 +362,7 @@ struct DiscoverView: View {
 
     @ViewBuilder
     private var content: some View {
-        if viewModel.isLoading && viewModel.stack.isEmpty {
+        if (viewModel.isLoading || viewModel.isLoadingMore) && viewModel.stack.isEmpty {
             LoadingStateView(message: "Berechne Empfehlungen …")
         } else if let error = viewModel.error, viewModel.stack.isEmpty {
             EmptyStateView(
@@ -367,13 +374,24 @@ struct DiscoverView: View {
                 Task { await reload() }
             }
         } else if viewModel.stack.isEmpty {
-            EmptyStateView(
-                symbol: viewModel.emptyLibrary ? "sparkles" : "checkmark.seal",
-                title: viewModel.emptyLibrary ? "Bewerte ein paar Titel" : "Alles gesichtet",
-                message: viewModel.emptyLibrary
-                    ? "Füge Filme oder Serien in der Bibliothek hinzu und bewerte sie. Dann lernt Cineo deinen Geschmack kennen."
-                    : "Komm später wieder — oder lade neue Vorschläge."
-            )
+            if viewModel.sourceMode == .trending {
+                EmptyStateView(
+                    symbol: "arrow.clockwise",
+                    title: "Alles durch",
+                    message: "Du hast den aktuellen Stapel komplett weggewischt. Lade ihn frisch nach.",
+                    actionTitle: "Stapel neu laden"
+                ) {
+                    refreshTrending()
+                }
+            } else {
+                EmptyStateView(
+                    symbol: viewModel.emptyLibrary ? "sparkles" : "checkmark.seal",
+                    title: viewModel.emptyLibrary ? "Bewerte ein paar Titel" : "Alles gesichtet",
+                    message: viewModel.emptyLibrary
+                        ? "Füge Filme oder Serien in der Bibliothek hinzu und bewerte sie. Dann lernt Cineo deinen Geschmack kennen."
+                        : "Komm später wieder — oder lade neue Vorschläge."
+                )
+            }
         } else {
             stackView
         }
@@ -684,6 +702,29 @@ struct DiscoverView: View {
             library: library.items,
             dismissedAtById: currentDismissedAtById()
         )
+    }
+
+    /// Cancel any in-flight reload and kick off a new one. Keeping a single
+    /// handle means rapid toggle taps never leave two reloads racing — each
+    /// fresh tap supersedes the previous one all the way down to URLSession.
+    private func startReload(preserveVisible: Int = 0) {
+        currentReloadTask?.cancel()
+        currentReloadTask = Task { await reload(preserveVisible: preserveVisible) }
+    }
+
+    /// "Stapel neu laden" button on the Angesagt empty state. Drops the
+    /// dismissal filter entirely so every trending item the user just
+    /// swiped past is back in the deck. The Firestore dismissal log is
+    /// left intact — only this fetch ignores it.
+    private func refreshTrending() {
+        currentReloadTask?.cancel()
+        currentReloadTask = Task {
+            await viewModel.reload(
+                library: library.items,
+                dismissedAtById: [:],
+                preserveVisible: 0
+            )
+        }
     }
 
     private func reload(preserveVisible: Int = 0) async {
