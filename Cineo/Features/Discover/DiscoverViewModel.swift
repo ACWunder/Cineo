@@ -32,6 +32,25 @@ final class DiscoverViewModel {
         }
     }
 
+    enum SourceMode: String, CaseIterable, Identifiable, Sendable {
+        case library     // recommendations derived from the user's ratings
+        case trending    // TMDB's weekly trending list, ignores the library
+
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .library: "Für dich"
+            case .trending: "Angesagt"
+            }
+        }
+        var icon: String {
+            switch self {
+            case .library: "sparkles"
+            case .trending: "flame.fill"
+            }
+        }
+    }
+
     /// Authoritative pool — the full list of candidates from the latest reload.
     private var allCandidates: [Candidate] = [] {
         didSet { rebuildFilterCaches() }
@@ -43,11 +62,26 @@ final class DiscoverViewModel {
 
     var stack: [Candidate] = []
     var filter: MediaFilter = .all { didSet { applyFilter() } }
+    /// Exclusion model — mirrors LibraryView. Empty = no filter; any genre
+    /// in this set is hidden from the deck (OR semantics: a candidate stays
+    /// if at least one of its genres is *not* excluded).
+    var excludedGenres: Set<String> = [] { didSet { applyFilter() } }
+    var sourceMode: SourceMode = .library    // reload trigger lives in the view
     var isLoading: Bool = false
     var error: String?
     var emptyLibrary: Bool = false
 
     private let client = TMDBClient.shared
+
+    /// Unique genres present in the current pool — used to populate the
+    /// genre menu. Empty until a reload has run.
+    var availableGenres: [String] {
+        var seen = Set<String>()
+        for c in allCandidates {
+            for g in c.genres { seen.insert(g) }
+        }
+        return seen.sorted()
+    }
 
     private func rebuildFilterCaches() {
         moviesCache = allCandidates.filter { $0.mediaType == .movie }
@@ -55,10 +89,20 @@ final class DiscoverViewModel {
     }
 
     private func applyFilter() {
+        let base: [Candidate]
         switch filter {
-        case .all:   stack = allCandidates
-        case .movie: stack = moviesCache
-        case .tv:    stack = tvCache
+        case .all:   base = allCandidates
+        case .movie: base = moviesCache
+        case .tv:    base = tvCache
+        }
+        if excludedGenres.isEmpty {
+            stack = base
+        } else {
+            // Same OR semantics as LibraryViewModel: keep a candidate if at
+            // least one of its genres is not in the exclusion set.
+            stack = base.filter { c in
+                c.genres.contains(where: { !excludedGenres.contains($0) })
+            }
         }
     }
 
@@ -84,6 +128,15 @@ final class DiscoverViewModel {
                 !libraryIds.contains(c.tmdbId) && dismissedAtById[c.tmdbId] == nil
             }
         }()
+
+        // Trending mode bypasses the library scoring entirely. The user is
+        // explicitly asking for "what's hot right now"; their ratings don't
+        // come into it.
+        if sourceMode == .trending {
+            emptyLibrary = false
+            await loadTrendingFallback(libraryIds: libraryIds, dismissedIds: Set(dismissedAtById.keys), preservedHead: preservedHead)
+            return
+        }
 
         if ratedTitles.isEmpty {
             emptyLibrary = library.isEmpty

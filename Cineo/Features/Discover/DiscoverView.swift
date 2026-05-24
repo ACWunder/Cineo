@@ -40,6 +40,10 @@ struct DiscoverView: View {
         case rated(DiscoverViewModel.Candidate)
     }
 
+    /// Drives the matchedGeometry slide of the active capsule between
+    /// the two source-toggle segments.
+    @Namespace private var sourceToggleNS
+
     private let swipeThreshold: CGFloat = 100
     private let maxRotation: Double = 12
     private let swipeDuration: Double = 0.3
@@ -50,6 +54,7 @@ struct DiscoverView: View {
                 Theme.Colors.background.ignoresSafeArea()
                 VStack(spacing: 0) {
                     topBar
+                    sourceToggle
                     content
                 }
                 if let candidate = ratingCandidate {
@@ -93,6 +98,13 @@ struct DiscoverView: View {
             guard didInitialLoad else { return }
             Task { await reload(preserveVisible: 5) }
         }
+        .onChange(of: viewModel.sourceMode) { _, _ in
+            // Switching between "Für dich" and "Angesagt" swaps the entire
+            // pool — refetch from scratch instead of preserving anything.
+            guard didInitialLoad else { return }
+            viewModel.excludedGenres = []
+            Task { await reload() }
+        }
         // Intentionally *no* onChange for dismissed: dismissing a card must
         // never trigger a recompute. popTop already removes it from the
         // local pool, and reloading here could race the snapshot listener
@@ -102,14 +114,73 @@ struct DiscoverView: View {
     private var topBar: some View {
         HStack(spacing: Theme.Spacing.xs) {
             mediaTypeMenu
+            genreMenu
             Spacer(minLength: 0)
             undoButton
             profileButton
         }
-        .frame(height: 40)
+        .frame(height: 36)
         .padding(.horizontal, Theme.Spacing.md)
-        .padding(.top, Theme.Spacing.xs)
-        .padding(.bottom, Theme.Spacing.sm)
+        .padding(.top, Theme.Spacing.xxs)
+        .padding(.bottom, Theme.Spacing.xxs)
+    }
+
+    private var sourceToggle: some View {
+        HStack(spacing: 0) {
+            sourceSegment(.library)
+            sourceSegment(.trending)
+        }
+        .padding(2)
+        .background(Theme.Colors.backgroundElevated, in: Capsule())
+        .overlay(
+            Capsule().stroke(
+                LinearGradient(
+                    colors: [Color.white.opacity(0.10), Color.white.opacity(0.02)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ),
+                lineWidth: 0.5
+            )
+        )
+        .frame(maxWidth: 240)
+        .padding(.horizontal, Theme.Spacing.md)
+        .padding(.top, 6)
+    }
+
+    private func sourceSegment(_ mode: DiscoverViewModel.SourceMode) -> some View {
+        let isActive = viewModel.sourceMode == mode
+        return Button {
+            guard !isActive else { return }
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
+                viewModel.sourceMode = mode
+            }
+            hapticConfirm()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: mode.icon)
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .symbolEffect(.bounce, value: viewModel.sourceMode)
+                Text(mode.label)
+                    .font(Theme.Typography.caption.weight(.semibold))
+            }
+            .foregroundStyle(isActive ? Color(hex: 0x2A1A05) : Theme.Colors.textSecondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 5)
+            .background {
+                if isActive {
+                    ZStack {
+                        Capsule().fill(Theme.Colors.accentGradient)
+                        Capsule().fill(Theme.Colors.accentSheen)
+                            .blendMode(.plusLighter)
+                            .allowsHitTesting(false)
+                    }
+                    .matchedGeometryEffect(id: "activeSource", in: sourceToggleNS)
+                    .shadow(color: Theme.Colors.accentGlow.opacity(0.45), radius: 8, y: 2)
+                }
+            }
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     private var undoButton: some View {
@@ -226,6 +297,49 @@ struct DiscoverView: View {
                 minWidth: 88
             )
         }
+    }
+
+    private var genreMenu: some View {
+        @Bindable var vm = viewModel
+        let genres = vm.availableGenres
+        let isActive = !vm.excludedGenres.isEmpty
+        return Menu {
+            Button("Zurücksetzen", role: .destructive) {
+                vm.excludedGenres = []
+            }
+            .disabled(!isActive)
+            Divider()
+            ForEach(genres, id: \.self) { genre in
+                // Same exclusion model + Color.clear placeholder trick as
+                // LibraryView.genreMenu — see the comments there for the
+                // reasoning behind the conditional view.
+                Button {
+                    if vm.excludedGenres.contains(genre) {
+                        vm.excludedGenres.remove(genre)
+                    } else {
+                        vm.excludedGenres.insert(genre)
+                    }
+                } label: {
+                    HStack {
+                        if vm.excludedGenres.contains(genre) {
+                            Color.clear.frame(width: 14, height: 14)
+                        } else {
+                            Image(systemName: "checkmark")
+                        }
+                        Text(genre)
+                    }
+                }
+                .menuActionDismissBehavior(.disabled)
+            }
+        } label: {
+            FilterPill(
+                icon: "tag.fill",
+                text: "Genre",
+                isActive: isActive,
+                minWidth: 108
+            )
+        }
+        .disabled(genres.isEmpty)
     }
 
     @ViewBuilder
