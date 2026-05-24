@@ -22,6 +22,7 @@ nonisolated struct LibraryItem: Codable, Identifiable, Hashable, Sendable {
 nonisolated struct DismissedItem: Codable, Identifiable, Hashable, Sendable {
     let tmdbId: Int
     let mediaType: MediaType
+    let dismissedAt: Date?
 
     var id: Int { tmdbId }
 }

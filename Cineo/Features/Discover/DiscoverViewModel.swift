@@ -63,7 +63,7 @@ final class DiscoverViewModel {
     }
 
     func reload(library: [LibraryItem],
-                dismissedIds: Set<Int>,
+                dismissedAtById: [Int: Date],
                 preserveVisible: Int = 0) async {
         isLoading = true
         defer { isLoading = false }
@@ -81,15 +81,23 @@ final class DiscoverViewModel {
         let preservedHead: [Candidate] = {
             guard preserveVisible > 0 else { return [] }
             return Array(stack.prefix(preserveVisible)).filter { c in
-                !libraryIds.contains(c.tmdbId) && !dismissedIds.contains(c.tmdbId)
+                !libraryIds.contains(c.tmdbId) && dismissedAtById[c.tmdbId] == nil
             }
         }()
 
         if ratedTitles.isEmpty {
             emptyLibrary = library.isEmpty
-            await loadTrendingFallback(libraryIds: libraryIds, dismissedIds: dismissedIds, preservedHead: preservedHead)
+            await loadTrendingFallback(libraryIds: libraryIds, dismissedIds: Set(dismissedAtById.keys), preservedHead: preservedHead)
             return
         }
+
+        // Revival rule: a dismissed candidate stays out for 7 days, period.
+        // After that it can only resurface if its accumulated recommendation
+        // score lands in the absolute top of the pool — otherwise the deck
+        // would repeat the same dismissed cards every 7 days.
+        let now = Date()
+        let revivalWindow: TimeInterval = 7 * 24 * 3600
+        let revivalTopN = 3
 
         var scores: [Int: Double] = [:]
         var seen: [Int: TMDBRecommendation] = [:]
@@ -105,7 +113,10 @@ final class DiscoverViewModel {
 
             for rec in combined {
                 if libraryIds.contains(rec.id) { continue }
-                if dismissedIds.contains(rec.id) { continue }
+                if let dAt = dismissedAtById[rec.id],
+                   now.timeIntervalSince(dAt) < revivalWindow {
+                    continue
+                }
                 let mtRaw = rec.mediaType ?? item.mediaType.rawValue
                 guard let mt = MediaType(rawValue: mtRaw) else { continue }
 
@@ -118,8 +129,16 @@ final class DiscoverViewModel {
         }
 
         let ordered = scores.sorted(by: { $0.value > $1.value })
+        // Only the absolute top of the ranking can resurface from the
+        // dismissed pile. Everything else, even if past the 7-day window,
+        // is filtered out so the user doesn't keep seeing the same
+        // borderline candidates.
+        let revivalEligibleIds: Set<Int> = Set(ordered.prefix(revivalTopN).map { $0.key })
+
         var candidates: [Candidate] = []
         for entry in ordered {
+            let wasDismissed = dismissedAtById[entry.key] != nil
+            if wasDismissed && !revivalEligibleIds.contains(entry.key) { continue }
             guard let rec = seen[entry.key], let mt = typeOf[entry.key] else { continue }
             let genres = await client.resolveGenres(ids: rec.genreIds, mediaType: mt)
             candidates.append(Candidate(
@@ -180,6 +199,15 @@ final class DiscoverViewModel {
         guard !stack.isEmpty else { return }
         let removed = stack.removeFirst()
         allCandidates.removeAll(where: { $0.id == removed.id })
+    }
+
+    /// Restore a previously-popped candidate to the very top of the deck.
+    /// Used by the undo button in DiscoverView. If the candidate is already
+    /// in the pool (rare race), this is effectively a no-op move-to-front.
+    func unshift(_ candidate: Candidate) {
+        allCandidates.removeAll(where: { $0.id == candidate.id })
+        allCandidates.insert(candidate, at: 0)
+        applyFilter()
     }
 
     /// Strip every candidate whose id is in `ids` from the pool. Used by

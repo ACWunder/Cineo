@@ -44,8 +44,19 @@ final class DismissedRepository {
         do {
             try await ref.setData([
                 "tmdbId": tmdbId,
-                "mediaType": mediaType.rawValue
+                "mediaType": mediaType.rawValue,
+                "dismissedAt": Timestamp(date: Date())
             ])
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    func undismiss(tmdbId: Int) async {
+        guard let uid else { return }
+        let ref = db.collection("users").document(uid).collection("dismissed").document(String(tmdbId))
+        do {
+            try await ref.delete()
         } catch {
             lastError = error.localizedDescription
         }
@@ -61,6 +72,7 @@ final class DismissedRepository {
             let mediaTypeRaw = data["mediaType"] as? String,
             let mediaType = MediaType(rawValue: mediaTypeRaw)
         else { return nil }
-        return DismissedItem(tmdbId: tmdbId, mediaType: mediaType)
+        let dismissedAt = (data["dismissedAt"] as? Timestamp)?.dateValue()
+        return DismissedItem(tmdbId: tmdbId, mediaType: mediaType, dismissedAt: dismissedAt)
     }
 }

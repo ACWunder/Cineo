@@ -29,6 +29,17 @@ struct DiscoverView: View {
     /// Firestore write + snapshot listener round-trip.
     @State private var locallyDismissed: Set<Int> = []
 
+    /// Last few actions the user has performed on the deck, capped at
+    /// `maxUndo`. Drives the back button in the top bar.
+    @State private var undoStack: [UndoEntry] = []
+    private let maxUndo = 5
+
+    private enum UndoEntry {
+        case dismissed(DiscoverViewModel.Candidate)
+        case addedToWatchlist(DiscoverViewModel.Candidate)
+        case rated(DiscoverViewModel.Candidate)
+    }
+
     private let swipeThreshold: CGFloat = 100
     private let maxRotation: Double = 12
     private let swipeDuration: Double = 0.3
@@ -89,15 +100,43 @@ struct DiscoverView: View {
     }
 
     private var topBar: some View {
-        HStack {
+        HStack(spacing: Theme.Spacing.xs) {
             mediaTypeMenu
             Spacer(minLength: 0)
+            undoButton
             profileButton
         }
         .frame(height: 40)
         .padding(.horizontal, Theme.Spacing.md)
         .padding(.top, Theme.Spacing.xs)
         .padding(.bottom, Theme.Spacing.sm)
+    }
+
+    private var undoButton: some View {
+        Button {
+            undoLast()
+        } label: {
+            Image(systemName: "arrow.uturn.backward")
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(Theme.Colors.accentLight)
+                .frame(width: 34, height: 34)
+                .background(.ultraThinMaterial.opacity(0.5), in: Circle())
+                .overlay(
+                    Circle().stroke(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.14), Color.white.opacity(0.03)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.5
+                    )
+                )
+        }
+        .buttonStyle(CineoPressStyle(scale: 0.92))
+        .opacity(undoStack.isEmpty ? 0.3 : 1)
+        .disabled(undoStack.isEmpty)
+        .animation(.easeInOut(duration: 0.15), value: undoStack.isEmpty)
+        .accessibilityLabel("Letzte Aktion rückgängig")
     }
 
     private var profileButton: some View {
@@ -392,6 +431,7 @@ struct DiscoverView: View {
         locallyDismissed.insert(candidate.tmdbId)
         flyOffAndAdvance(translationEnd: CGSize(width: -800, height: 0)) {
             viewModel.popTop()
+            recordUndo(.dismissed(candidate))
             Task {
                 await dismissed.dismiss(tmdbId: candidate.tmdbId, mediaType: candidate.mediaType)
             }
@@ -403,6 +443,7 @@ struct DiscoverView: View {
         let item = viewModel.toLibraryItem(candidate, rating: nil, watched: false)
         flyOffAndAdvance(translationEnd: CGSize(width: 0, height: -800)) {
             viewModel.popTop()
+            recordUndo(.addedToWatchlist(candidate))
             Task { await library.add(item) }
         }
     }
@@ -447,7 +488,31 @@ struct DiscoverView: View {
         let item = viewModel.toLibraryItem(candidate, rating: value, watched: true)
         ratingCandidate = nil
         viewModel.popTop()
+        recordUndo(.rated(candidate))
         Task { await library.add(item) }
+    }
+
+    // MARK: - Undo
+
+    private func recordUndo(_ entry: UndoEntry) {
+        undoStack.append(entry)
+        if undoStack.count > maxUndo {
+            undoStack.removeFirst(undoStack.count - maxUndo)
+        }
+    }
+
+    private func undoLast() {
+        guard let entry = undoStack.popLast() else { return }
+        hapticConfirm()
+        switch entry {
+        case .dismissed(let c):
+            locallyDismissed.remove(c.tmdbId)
+            viewModel.unshift(c)
+            Task { await dismissed.undismiss(tmdbId: c.tmdbId) }
+        case .addedToWatchlist(let c), .rated(let c):
+            viewModel.unshift(c)
+            Task { await library.remove(tmdbId: c.tmdbId) }
+        }
     }
 
     // MARK: - Haptics
@@ -481,22 +546,36 @@ struct DiscoverView: View {
         // delivered the snapshot containing them. The local set only
         // ever grows; Firestore is still the persistent source of
         // truth across sessions.
-        let dismissedIds = Set(dismissed.items.map(\.tmdbId)).union(locallyDismissed)
+        //
+        // We pass the dismissal timestamp through so the ViewModel can
+        // apply the 7-day revival rule. Session-local dismissals get
+        // `Date()` (just now); persisted items use whatever Firestore
+        // returned (older docs without the field are treated as recent
+        // so legacy dismissals don't suddenly flood back in).
+        let now = Date()
+        var dismissedAtById: [Int: Date] = [:]
+        for item in dismissed.items {
+            dismissedAtById[item.tmdbId] = item.dismissedAt ?? now
+        }
+        for id in locallyDismissed where dismissedAtById[id] == nil {
+            dismissedAtById[id] = now
+        }
         await viewModel.reload(
             library: libraryItems,
-            dismissedIds: dismissedIds,
+            dismissedAtById: dismissedAtById,
             preserveVisible: preserveVisible
         )
         // The reload above takes seconds (it fans out multiple TMDB
         // calls per rated title). During that time the user keeps
         // mashing X — those new dismissals land in `locallyDismissed`
-        // but the in-flight reload already snapshotted its own
-        // `dismissedIds` and is blind to them. After the new pool is
-        // committed to the stack, sweep out anything the user
-        // dismissed mid-reload so the same cards never reappear.
+        // but the in-flight reload already snapshotted its own state
+        // and is blind to them. After the new pool is committed to
+        // the stack, sweep out anything the user dismissed mid-reload
+        // so the same cards never reappear.
+        let snapshottedIds = Set(dismissedAtById.keys)
         let freshDismissed = Set(dismissed.items.map(\.tmdbId))
             .union(locallyDismissed)
-            .subtracting(dismissedIds)
+            .subtracting(snapshottedIds)
         if !freshDismissed.isEmpty {
             viewModel.removeIDs(freshDismissed)
         }
