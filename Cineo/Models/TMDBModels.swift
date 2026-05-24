@@ -153,6 +153,52 @@ nonisolated struct TMDBSeason: Decodable, Hashable, Sendable {
     let posterPath: String?
 }
 
+// MARK: - Person search + combined credits
+
+nonisolated struct TMDBPersonSearchResponse: Decodable, Sendable {
+    let results: [TMDBPersonHit]
+}
+
+nonisolated struct TMDBPersonHit: Decodable, Sendable, Identifiable {
+    let id: Int
+    let name: String
+    let popularity: Double?
+}
+
+nonisolated struct TMDBCombinedCreditsResponse: Decodable, Sendable {
+    let cast: [TMDBCombinedCredit]
+}
+
+nonisolated struct TMDBCombinedCredit: Decodable, Sendable, Identifiable {
+    let id: Int
+    let mediaType: String?
+    let title: String?
+    let name: String?
+    let overview: String?
+    let posterPath: String?
+    let releaseDate: String?
+    let firstAirDate: String?
+    let genreIds: [Int]?
+    let voteAverage: Double?
+    let popularity: Double?
+    let episodeCount: Int?
+
+    func toMultiResult() -> TMDBSearchMultiResult {
+        TMDBSearchMultiResult(
+            id: id,
+            mediaType: mediaType,
+            title: title,
+            name: name,
+            overview: overview,
+            posterPath: posterPath,
+            releaseDate: releaseDate,
+            firstAirDate: firstAirDate,
+            genreIds: genreIds,
+            voteAverage: voteAverage
+        )
+    }
+}
+
 nonisolated struct TMDBRecommendationsResponse: Decodable, Sendable {
     let page: Int?
     let results: [TMDBRecommendation]

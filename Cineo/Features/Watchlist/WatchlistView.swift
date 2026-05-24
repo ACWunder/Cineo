@@ -41,7 +41,7 @@ struct WatchlistView: View {
                 VStack(spacing: 0) {
                     CineoSearchField(
                         text: $searchQuery,
-                        placeholder: "Film oder Serie hinzufügen …",
+                        placeholder: "Film, Serie oder Schauspieler suchen …",
                         focus: $searchFocused
                     )
                     .padding(.horizontal, Theme.Spacing.md)

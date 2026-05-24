@@ -53,10 +53,12 @@ struct CineoSearchField: View {
             TextField(placeholder, text: $text)
                 .focused(focus)
                 .modifier(SearchFieldStyle())
+                .onSubmit { focus.wrappedValue = false }
         } else {
             TextField(placeholder, text: $text)
                 .focused($internalFocused)
                 .modifier(SearchFieldStyle())
+                .onSubmit { internalFocused = false }
         }
     }
 }

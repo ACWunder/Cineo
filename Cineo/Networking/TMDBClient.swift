@@ -55,12 +55,94 @@ actor TMDBClient {
     }
 
     func searchMulti(query: String) async throws -> [TMDBSearchMultiResult] {
-        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else { return [] }
-        let response: TMDBSearchMultiResponse = try await get(
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return [] }
+
+        // Multi-word queries get an extra person-search pass: when someone
+        // types a full actor name ("Leonardo DiCaprio"), we want their
+        // filmography to lead the result list. Single-word queries skip
+        // the extra call to keep latency down.
+        let looksLikeName = trimmed.split(whereSeparator: { $0.isWhitespace }).count >= 2
+
+        async let multiTask: TMDBSearchMultiResponse = get(
             path: "/search/multi",
+            query: ["query": trimmed, "include_adult": "false", "language": "de-DE", "page": "1"]
+        )
+        async let personTask: TMDBPersonSearchResponse? = lookupPerson(query: trimmed, enabled: looksLikeName)
+
+        let multi = (try await multiTask).results.filter { $0.resolvedMediaType != nil }
+
+        // Hoist the actor's films/shows to the top when their name matches
+        // closely (Levenshtein ≤ 2 absorbs the occasional typo).
+        if looksLikeName,
+           let top = await personTask?.results.first,
+           Self.isStrongNameMatch(query: trimmed, name: top.name)
+        {
+            let credits: TMDBCombinedCreditsResponse? = try? await get(
+                path: "/person/\(top.id)/combined_credits",
+                query: ["language": "de-DE"]
+            )
+            if let cast = credits?.cast {
+                // Two passes: filter to real roles (drop guest spots on TV
+                // where they only appear in 1–2 episodes — those crowd out
+                // the actor's actual films), then films first sorted by
+                // popularity, then shows by popularity. That way the top
+                // result is always the actor's most popular movie.
+                let filtered: [TMDBCombinedCredit] = cast.filter { credit in
+                    let hasPoster = !(credit.posterPath ?? "").isEmpty
+                    let isMovie = credit.mediaType == "movie"
+                    let isShow = credit.mediaType == "tv"
+                    guard hasPoster, isMovie || isShow else { return false }
+                    if isShow, let eps = credit.episodeCount, eps < 3 { return false }
+                    return true
+                }
+                var movies: [TMDBCombinedCredit] = filtered.filter { $0.mediaType == "movie" }
+                var shows: [TMDBCombinedCredit] = filtered.filter { $0.mediaType == "tv" }
+                movies.sort { ($0.popularity ?? 0) > ($1.popularity ?? 0) }
+                shows.sort { ($0.popularity ?? 0) > ($1.popularity ?? 0) }
+                let ordered = (movies + shows).prefix(40)
+                let creditResults: [TMDBSearchMultiResult] = ordered.map { $0.toMultiResult() }
+                let ids: Set<Int> = Set(creditResults.map { $0.id })
+                let rest = multi.filter { !ids.contains($0.id) }
+                return creditResults + rest
+            }
+        }
+
+        return multi
+    }
+
+    private func lookupPerson(query: String, enabled: Bool) async -> TMDBPersonSearchResponse? {
+        guard enabled else { return nil }
+        return try? await get(
+            path: "/search/person",
             query: ["query": query, "include_adult": "false", "language": "de-DE", "page": "1"]
         )
-        return response.results.filter { $0.resolvedMediaType != nil }
+    }
+
+    private nonisolated static func isStrongNameMatch(query: String, name: String) -> Bool {
+        let q = query.lowercased()
+        let n = name.lowercased()
+        if n == q { return true }
+        if n.contains(q) || q.contains(n) { return true }
+        return levenshtein(q, n) <= 2
+    }
+
+    private nonisolated static func levenshtein(_ a: String, _ b: String) -> Int {
+        let aa = Array(a)
+        let bb = Array(b)
+        if aa.isEmpty { return bb.count }
+        if bb.isEmpty { return aa.count }
+        var prev = Array(0...bb.count)
+        var curr = Array(repeating: 0, count: bb.count + 1)
+        for i in 1...aa.count {
+            curr[0] = i
+            for j in 1...bb.count {
+                let cost = aa[i-1] == bb[j-1] ? 0 : 1
+                curr[j] = Swift.min(curr[j-1] + 1, prev[j] + 1, prev[j-1] + cost)
+            }
+            swap(&prev, &curr)
+        }
+        return prev[bb.count]
     }
 
     func movieDetails(_ id: Int) async throws -> TMDBMovieDetails {
