@@ -13,7 +13,7 @@ struct MainTabView: View {
                 .tabItem { Label("Bibliothek", systemImage: "books.vertical.fill") }
 
             SeasonsView()
-                .tabItem { Label("Staffeln", systemImage: "calendar.badge.clock") }
+                .tabItem { Label("Demnächst", systemImage: "calendar.badge.clock") }
         }
         .tint(Theme.Colors.accent)
         .background(Theme.Colors.background.ignoresSafeArea())
